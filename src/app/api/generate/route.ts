@@ -1,144 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { Documentation } from "@/types";
+import {
+  generateDocumentation,
+  generateDocumentationStream,
+  toDocumentation,
+} from "@/lib/documentationGenerator";
+import { getNetworkConfig } from "@/config/chains";
+import { NetworkType } from "@/types";
 
-const SYSTEM_PROMPT = `You are ChainLens AI, an expert Solidity smart contract documentation generator.
-You analyze smart contract source code and produce comprehensive, developer-friendly documentation.
-
-Your documentation must include:
-1. A clear overview of the contract's purpose and architecture
-2. Detailed function descriptions with parameter explanations
-3. Security analysis with findings and risk assessment
-4. Practical recommendations
-
-You MUST respond with valid JSON only — no markdown, no explanation outside the JSON.`;
-
+/**
+ * POST /api/generate
+ *
+ * Generate AI-powered documentation for a smart contract.
+ *
+ * Request body:
+ * - sourceCode (required) — Solidity source code
+ * - contractName — contract name
+ * - contractAddress — contract address
+ * - network — "bsc-mainnet" | "bsc-testnet" | "opbnb"
+ * - abi — ABI array or string
+ * - stream — if true, returns SSE stream with progress events
+ *
+ * Standard mode: Returns { success: true, documentation }
+ * Streaming mode: Returns text/event-stream with progress/chunk/complete/error events
+ */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const {
-      contractAddress,
-      network,
       sourceCode,
+      contractName = "Unknown",
+      contractAddress = "",
+      network = "bsc-mainnet",
       abi,
-      contractName,
+      stream: useStream = false,
     } = body;
 
     if (!sourceCode) {
-      return NextResponse.json({ error: "Source code is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Source code is required" },
+        { status: 400 }
+      );
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
+    // Resolve chainId from network
+    let chainId = 56;
+    try {
+      const config = getNetworkConfig(network as NetworkType);
+      chainId = config.chainId;
+    } catch {
+      // Default to BSC Mainnet
     }
 
-    const client = new Anthropic({ apiKey });
+    // Normalize ABI to string
+    const abiStr =
+      typeof abi === "string" ? abi : JSON.stringify(abi || []);
 
-    const userPrompt = `Analyze this Solidity smart contract and generate comprehensive documentation as JSON.
+    // ── Streaming mode ──────────────────────────────────────────
+    if (useStream) {
+      const sseStream = generateDocumentationStream(
+        sourceCode,
+        contractName,
+        abiStr,
+        contractAddress,
+        chainId,
+        network
+      );
 
-CONTRACT: ${contractName}
-ADDRESS: ${contractAddress}
-NETWORK: ${network}
-
-SOURCE CODE:
-\`\`\`solidity
-${sourceCode.slice(0, 15000)}
-\`\`\`
-
-ABI SUMMARY: ${JSON.stringify((abi || []).slice(0, 20).map((a: { type: string; name?: string }) => ({ type: a.type, name: a.name })))}
-
-Respond with ONLY valid JSON in this exact structure:
-{
-  "overview": "string - detailed contract overview",
-  "functions": [
-    {
-      "name": "string",
-      "signature": "string - full solidity signature",
-      "visibility": "string",
-      "stateMutability": "string",
-      "description": "string - what this function does",
-      "parameters": [{"name": "string", "type": "string", "description": "string"}],
-      "returns": [{"name": "string", "type": "string", "description": "string"}],
-      "modifiers": ["string"],
-      "securityNotes": ["string"]
-    }
-  ],
-  "events": [
-    {
-      "name": "string",
-      "description": "string",
-      "parameters": [{"name": "string", "type": "string", "description": "string", "indexed": false}]
-    }
-  ],
-  "stateVariables": [
-    {
-      "name": "string",
-      "type": "string",
-      "visibility": "string",
-      "description": "string",
-      "isConstant": false,
-      "isImmutable": false
-    }
-  ],
-  "securityAnalysis": {
-    "riskLevel": "low|medium|high|critical",
-    "findings": [{"severity": "string", "title": "string", "description": "string"}],
-    "recommendations": ["string"]
-  }
-}`;
-
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: userPrompt,
+      return new Response(sseStream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
         },
-      ],
-      system: SYSTEM_PROMPT,
-    });
-
-    const responseText = message.content
-      .filter((block): block is Anthropic.TextBlock => block.type === "text")
-      .map((block) => block.text)
-      .join("");
-
-    // Extract JSON from response (handle potential markdown wrapping)
-    let jsonStr = responseText;
-    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1];
+      });
     }
 
-    const parsed = JSON.parse(jsonStr.trim());
+    // ── Standard mode ───────────────────────────────────────────
+    const genDoc = await generateDocumentation(
+      sourceCode,
+      contractName,
+      abiStr,
+      contractAddress,
+      chainId
+    );
 
-    const documentation: Documentation = {
-      id: `doc-${Date.now()}`,
-      contractAddress: contractAddress || "",
-      contractName: contractName || "Unknown",
-      network: network || "bsc-mainnet",
-      overview: parsed.overview || "",
-      functions: parsed.functions || [],
-      events: parsed.events || [],
-      stateVariables: parsed.stateVariables || [],
-      modifiers: [],
-      securityAnalysis: parsed.securityAnalysis || {
-        riskLevel: "medium",
-        findings: [],
-        recommendations: [],
-      },
-      dependencies: [],
-      generatedAt: new Date().toISOString(),
-      version: "2.0.0",
-    };
+    // Map to legacy Documentation type for frontend compatibility
+    const documentation = toDocumentation(genDoc, network);
 
-    return NextResponse.json({ success: true, documentation });
+    return NextResponse.json({
+      success: true,
+      documentation,
+      generatedDocumentation: genDoc,
+    });
   } catch (error) {
     console.error("Generation error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to generate documentation" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to generate documentation",
+      },
       { status: 500 }
     );
   }

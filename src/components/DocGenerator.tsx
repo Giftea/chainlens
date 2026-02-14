@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { FileText, Loader2, Search, Shield } from "lucide-react";
+import { FileText, Loader2, Shield, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 import { NetworkType, Documentation } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
 
@@ -15,14 +14,29 @@ interface DocGeneratorProps {
   onDocGenerated: (doc: Documentation) => void;
 }
 
+interface ProgressState {
+  stage: string;
+  percent: number;
+  message: string;
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  fetching: "Fetching Contract",
+  parsing: "Parsing Source",
+  analyzing: "Analyzing Structure",
+  generating: "AI Generating",
+  validating: "Validating Output",
+  complete: "Complete",
+};
+
 export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
   const [address, setAddress] = useState("");
   const [network, setNetwork] = useState<NetworkType>("bsc-mainnet");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<string>("");
+  const [progress, setProgress] = useState<ProgressState | null>(null);
 
-  const handleGenerate = async () => {
+  const handleGenerate = useCallback(async () => {
     if (!address) {
       setError("Please enter a contract address");
       return;
@@ -35,9 +49,10 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
 
     setLoading(true);
     setError(null);
+    setProgress({ stage: "fetching", percent: 5, message: "Fetching contract source code..." });
 
     try {
-      setStep("Fetching contract source code...");
+      // Step 1: Fetch contract source
       const fetchRes = await fetch("/api/fetch-contract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -51,7 +66,9 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
 
       const { contract } = await fetchRes.json();
 
-      setStep("Generating AI documentation...");
+      // Step 2: Generate documentation via SSE stream
+      setProgress({ stage: "parsing", percent: 10, message: "Starting AI documentation engine..." });
+
       const genRes = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -61,23 +78,87 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
           sourceCode: contract.sourceCode,
           abi: contract.abi,
           contractName: contract.name,
+          stream: true,
         }),
       });
 
       if (!genRes.ok) {
-        const data = await genRes.json();
-        throw new Error(data.error || "Failed to generate documentation");
+        const errData = await genRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to generate documentation");
       }
 
-      const { documentation } = await genRes.json();
+      if (!genRes.body) {
+        throw new Error("Stream not available");
+      }
+
+      const reader = genRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let eventType = "";
+      let documentation: Documentation | null = null;
+      let streamError: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        // Process current chunk
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+        }
+
+        // When done, also process remaining buffer
+        if (done && !buffer.trim()) break;
+
+        const lines = done ? buffer.split("\n") : (() => {
+          const l = buffer.split("\n");
+          buffer = l.pop() || "";
+          return l;
+        })();
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ") && eventType) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (eventType === "progress") {
+                setProgress({
+                  stage: data.stage,
+                  percent: data.percent,
+                  message: data.message,
+                });
+              } else if (eventType === "complete" && data.documentation) {
+                documentation = data.documentation;
+              } else if (eventType === "error") {
+                streamError = data.error || "Generation failed";
+              }
+            } catch {
+              // Ignore partial JSON
+            }
+            eventType = "";
+          }
+        }
+
+        if (done) break;
+      }
+
+      if (streamError) {
+        throw new Error(streamError);
+      }
+
+      if (!documentation) {
+        throw new Error("No documentation received. Please try again.");
+      }
+
+      setProgress({ stage: "complete", percent: 100, message: "Documentation generated successfully!" });
       onDocGenerated(documentation);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
       setLoading(false);
-      setStep("");
+      setProgress(null);
     }
-  };
+  }, [address, network, onDocGenerated]);
 
   return (
     <Card className="w-full">
@@ -114,6 +195,7 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
             <SelectContent>
               <SelectItem value="bsc-mainnet">BSC Mainnet</SelectItem>
               <SelectItem value="bsc-testnet">BSC Testnet</SelectItem>
+              <SelectItem value="opbnb">opBNB</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -124,25 +206,68 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
             Security Analysis
           </Badge>
           <Badge variant="outline" className="text-xs">
-            <Search className="h-3 w-3 mr-1" />
-            Dependency Mapping
+            <Zap className="h-3 w-3 mr-1" />
+            Gas Optimization
           </Badge>
         </div>
 
         {error && (
-          <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
             {error}
           </div>
         )}
 
-        {loading && (
+        {loading && progress && (
           <div className="space-y-3">
+            {/* Progress bar */}
+            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+
+            {/* Stage info */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {step}
+              <span className="font-medium">{STAGE_LABELS[progress.stage] || progress.stage}</span>
+              <span className="text-xs">({progress.percent}%)</span>
             </div>
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
+            <p className="text-xs text-muted-foreground">{progress.message}</p>
+
+            {/* Stage pipeline */}
+            <div className="flex items-center gap-1 text-xs">
+              {["fetching", "parsing", "analyzing", "generating", "validating"].map((stage, i) => {
+                const stageOrder = ["fetching", "parsing", "analyzing", "generating", "validating", "complete"];
+                const currentIdx = stageOrder.indexOf(progress.stage);
+                const stageIdx = stageOrder.indexOf(stage);
+                const isComplete = stageIdx < currentIdx;
+                const isCurrent = stage === progress.stage;
+
+                return (
+                  <div key={stage} className="flex items-center gap-1">
+                    {i > 0 && <div className={`w-4 h-px ${isComplete ? "bg-primary" : "bg-muted-foreground/30"}`} />}
+                    <div
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${
+                        isComplete
+                          ? "bg-primary/10 text-primary"
+                          : isCurrent
+                            ? "bg-primary/20 text-primary font-medium"
+                            : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {isComplete ? (
+                        <CheckCircle2 className="h-3 w-3" />
+                      ) : isCurrent ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : null}
+                      {STAGE_LABELS[stage]}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

@@ -216,6 +216,98 @@ export interface SecurityFinding {
   location?: string;
 }
 
+// --- AI Generated Documentation Types ---
+
+/** Comprehensive AI-generated documentation from the documentation engine */
+export interface GeneratedDocumentation {
+  // Metadata
+  contractName: string;
+  contractAddress: string;
+  compiler: string;
+  chainId: number;
+
+  // AI-Generated Content
+  executiveSummary: string;
+  technicalOverview: string;
+  purpose: string;
+
+  // Code Analysis
+  stateVariables: GenStateVariable[];
+  functions: GenFunctionDoc[];
+  events: GenEventDoc[];
+  modifiers: GenModifierDoc[];
+
+  // Insights
+  designPatterns: string[];
+  inheritanceTree: string[];
+  externalCalls: ExternalCall[];
+  securityConsiderations: string[];
+  gasOptimizations: string[];
+  useCases: string[];
+
+  // Metrics
+  complexity: "Low" | "Medium" | "High" | "Very High";
+  linesOfCode: number;
+  generatedAt: string;
+}
+
+export interface GenStateVariable {
+  name: string;
+  type: string;
+  visibility: string;
+  description: string;
+  purpose: string;
+}
+
+export interface GenFunctionDoc {
+  name: string;
+  signature: string;
+  visibility: "external" | "public" | "internal" | "private";
+  stateMutability: "view" | "pure" | "payable" | "nonpayable";
+  parameters: GenParameter[];
+  returns: GenParameter[];
+  description: string;
+  businessLogic: string;
+  accessControl: string;
+  gasEstimate?: string;
+  risks?: string[];
+  example?: string;
+}
+
+export interface GenEventDoc {
+  name: string;
+  parameters: GenParameter[];
+  description: string;
+  whenEmitted: string;
+  purpose: string;
+}
+
+export interface GenModifierDoc {
+  name: string;
+  parameters: GenParameter[];
+  description: string;
+  purpose: string;
+}
+
+export interface GenParameter {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface ExternalCall {
+  targetContract: string;
+  function: string;
+  purpose: string;
+}
+
+/** SSE progress event from the documentation generator */
+export interface DocGenProgress {
+  stage: "parsing" | "analyzing" | "generating" | "validating" | "complete";
+  percent: number;
+  message: string;
+}
+
 // --- Diff Types ---
 
 export interface ContractDiff {
