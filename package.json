@@ -7,10 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "compile": "hardhat compile",
-    "test:contracts": "hardhat test",
-    "deploy:testnet": "hardhat run src/contracts/deploy.ts --network bscTestnet",
-    "deploy:mainnet": "hardhat run src/contracts/deploy.ts --network bscMainnet"
+    "compile": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat compile",
+    "test:contracts": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat test",
+    "deploy:testnet": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run src/contracts/deploy.ts --network bscTestnet",
+    "deploy:mainnet": "TS_NODE_PROJECT=tsconfig.hardhat.json hardhat run src/contracts/deploy.ts --network bscMainnet"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
