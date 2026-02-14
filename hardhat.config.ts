@@ -17,12 +17,15 @@ const config: HardhatUserConfig = {
       viaIR: false,
     },
   },
+  sourcify: {
+    enabled: true,
+  },
   networks: {
     hardhat: {
       chainId: 31337,
     },
     bscTestnet: {
-      url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
+      url: "https://data-seed-prebsc-1-s1.bnbchain.org:8545/",
       chainId: 97,
       accounts,
       gasPrice: 10000000000, // 10 gwei
