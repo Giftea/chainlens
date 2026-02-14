@@ -7,11 +7,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Loader2, Shield, Zap, CheckCircle2, AlertCircle } from "lucide-react";
-import { NetworkType, Documentation } from "@/types";
+import { NetworkType, Documentation, GeneratedDocumentation } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
 
+/** Result passed to the parent page */
+export interface GenerationResult {
+  documentation: Documentation;
+  generatedDocumentation?: GeneratedDocumentation;
+  sourceCode?: string;
+  contractName: string;
+}
+
 interface DocGeneratorProps {
-  onDocGenerated: (doc: Documentation) => void;
+  onDocGenerated: (result: GenerationResult) => void;
 }
 
 interface ProgressState {
@@ -29,12 +37,26 @@ const STAGE_LABELS: Record<string, string> = {
   complete: "Complete",
 };
 
+const EXAMPLE_CONTRACTS: { label: string; address: string; network: NetworkType }[] = [
+  { label: "PancakeSwap Router", address: "0x10ED43C718714eb63d5aA57B78B54704E256024E", network: "bsc-mainnet" },
+  { label: "USDT (BSC)", address: "0x55d398326f99059fF775485246999027B3197955", network: "bsc-mainnet" },
+  { label: "BUSD", address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56", network: "bsc-mainnet" },
+  { label: "PancakeSwap Factory", address: "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73", network: "bsc-mainnet" },
+];
+
 export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
   const [address, setAddress] = useState("");
   const [network, setNetwork] = useState<NetworkType>("bsc-mainnet");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
+
+  const handleSelectExample = (idx: number) => {
+    const ex = EXAMPLE_CONTRACTS[idx];
+    setAddress(ex.address);
+    setNetwork(ex.network);
+    setError(null);
+  };
 
   const handleGenerate = useCallback(async () => {
     if (!address) {
@@ -96,17 +118,16 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
       let buffer = "";
       let eventType = "";
       let documentation: Documentation | null = null;
+      let generatedDocumentation: GeneratedDocumentation | undefined;
       let streamError: string | null = null;
 
       while (true) {
         const { done, value } = await reader.read();
 
-        // Process current chunk
         if (value) {
           buffer += decoder.decode(value, { stream: true });
         }
 
-        // When done, also process remaining buffer
         if (done && !buffer.trim()) break;
 
         const lines = done ? buffer.split("\n") : (() => {
@@ -129,6 +150,7 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
                 });
               } else if (eventType === "complete" && data.documentation) {
                 documentation = data.documentation;
+                generatedDocumentation = data.generatedDocumentation;
               } else if (eventType === "error") {
                 streamError = data.error || "Generation failed";
               }
@@ -151,7 +173,12 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
       }
 
       setProgress({ stage: "complete", percent: 100, message: "Documentation generated successfully!" });
-      onDocGenerated(documentation);
+      onDocGenerated({
+        documentation,
+        generatedDocumentation,
+        sourceCode: contract.sourceCode,
+        contractName: contract.name,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally {
@@ -200,6 +227,21 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
           </Select>
         </div>
 
+        {/* Example Contracts */}
+        <div className="flex flex-wrap gap-2">
+          <span className="text-xs text-muted-foreground self-center">Try:</span>
+          {EXAMPLE_CONTRACTS.map((ex, i) => (
+            <button
+              key={i}
+              onClick={() => handleSelectExample(i)}
+              disabled={loading}
+              className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors disabled:opacity-50"
+            >
+              {ex.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs">
             <Shield className="h-3 w-3 mr-1" />
@@ -220,7 +262,6 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
 
         {loading && progress && (
           <div className="space-y-3">
-            {/* Progress bar */}
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
@@ -228,7 +269,6 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
               />
             </div>
 
-            {/* Stage info */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="font-medium">{STAGE_LABELS[progress.stage] || progress.stage}</span>
@@ -236,7 +276,6 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
             </div>
             <p className="text-xs text-muted-foreground">{progress.message}</p>
 
-            {/* Stage pipeline */}
             <div className="flex items-center gap-1 text-xs">
               {["fetching", "parsing", "analyzing", "generating", "validating"].map((stage, i) => {
                 const stageOrder = ["fetching", "parsing", "analyzing", "generating", "validating", "complete"];

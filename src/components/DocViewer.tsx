@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Download,
@@ -21,17 +22,30 @@ import {
   BookOpen,
   Layers,
   Lock,
+  Search,
+  Copy,
+  Check,
+  Cpu,
+  GitBranch,
+  Lightbulb,
+  Gauge,
+  ExternalLink,
 } from "lucide-react";
-import { Documentation, ExportFormat, FunctionDoc, SecurityFinding } from "@/types";
+import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation } from "@/types";
 import { exportToMarkdown } from "@/lib/exporters/markdown";
 import { exportToPDF } from "@/lib/exporters/pdf";
 import { exportToHTML } from "@/lib/exporters/html";
+import dynamic from "next/dynamic";
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
 interface DocViewerProps {
   documentation: Documentation;
+  generatedDocumentation?: GeneratedDocumentation;
+  sourceCode?: string;
 }
 
-export default function DocViewer({ documentation }: DocViewerProps) {
+export default function DocViewer({ documentation, generatedDocumentation, sourceCode }: DocViewerProps) {
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async (format: ExportFormat) => {
@@ -61,12 +75,8 @@ export default function DocViewer({ documentation }: DocViewerProps) {
     }
   };
 
-  const readFunctions = documentation.functions.filter(
-    (f) => f.stateMutability === "view" || f.stateMutability === "pure"
-  );
-  const writeFunctions = documentation.functions.filter(
-    (f) => f.stateMutability !== "view" && f.stateMutability !== "pure"
-  );
+  const hasTechnical = !!generatedDocumentation;
+  const hasSource = !!sourceCode;
 
   return (
     <Card className="w-full">
@@ -87,6 +97,12 @@ export default function DocViewer({ documentation }: DocViewerProps) {
             <Badge variant="secondary" className="text-xs">
               {documentation.events.length} events
             </Badge>
+            {generatedDocumentation && (
+              <Badge variant="secondary" className="text-xs">
+                <Gauge className="h-3 w-3 mr-1" />
+                {generatedDocumentation.complexity}
+              </Badge>
+            )}
           </div>
         </div>
         <div className="flex gap-2">
@@ -119,17 +135,44 @@ export default function DocViewer({ documentation }: DocViewerProps) {
             <TabsTrigger value="security">
               <Shield className="h-4 w-4 mr-1" /> Security
             </TabsTrigger>
+            {hasTechnical && (
+              <TabsTrigger value="technical">
+                <Cpu className="h-4 w-4 mr-1" /> Technical
+              </TabsTrigger>
+            )}
+            {hasSource && (
+              <TabsTrigger value="source">
+                <FileText className="h-4 w-4 mr-1" /> Source
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* ── Overview Tab ─────────────────────────────── */}
           <TabsContent value="overview" className="mt-4 space-y-6">
-            {/* Overview */}
+            {generatedDocumentation?.executiveSummary && (
+              <section>
+                <h3 className="text-lg font-semibold mb-2">Executive Summary</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {generatedDocumentation.executiveSummary}
+                </p>
+              </section>
+            )}
+
             <section>
               <h3 className="text-lg font-semibold mb-2">Overview</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {documentation.overview}
               </p>
             </section>
+
+            {generatedDocumentation?.purpose && (
+              <section>
+                <h3 className="text-lg font-semibold mb-2">Purpose</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  {generatedDocumentation.purpose}
+                </p>
+              </section>
+            )}
 
             {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -185,42 +228,11 @@ export default function DocViewer({ documentation }: DocViewerProps) {
           </TabsContent>
 
           {/* ── Functions Tab ────────────────────────────── */}
-          <TabsContent value="functions" className="mt-4 space-y-6">
-            {/* Read Functions */}
-            {readFunctions.length > 0 && (
-              <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-blue-500" />
-                  Read Functions
-                  <Badge variant="secondary" className="text-xs">{readFunctions.length}</Badge>
-                </h3>
-                <div className="space-y-2">
-                  {readFunctions.map((fn, i) => (
-                    <FunctionCard key={i} fn={fn} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Write Functions */}
-            {writeFunctions.length > 0 && (
-              <section>
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <EyeOff className="h-5 w-5 text-orange-500" />
-                  Write Functions
-                  <Badge variant="secondary" className="text-xs">{writeFunctions.length}</Badge>
-                </h3>
-                <div className="space-y-2">
-                  {writeFunctions.map((fn, i) => (
-                    <FunctionCard key={i} fn={fn} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {documentation.functions.length === 0 && (
-              <p className="text-muted-foreground text-sm">No functions found.</p>
-            )}
+          <TabsContent value="functions" className="mt-4 space-y-4">
+            <FunctionsTab
+              functions={documentation.functions}
+              genFunctions={generatedDocumentation?.functions}
+            />
           </TabsContent>
 
           {/* ── Events Tab ───────────────────────────────── */}
@@ -318,7 +330,6 @@ export default function DocViewer({ documentation }: DocViewerProps) {
                   <RiskBadge level={documentation.securityAnalysis.riskLevel} large />
                 </div>
 
-                {/* Findings */}
                 {documentation.securityAnalysis.findings.length > 0 && (
                   <section>
                     <h3 className="text-lg font-semibold mb-3">Findings</h3>
@@ -330,7 +341,6 @@ export default function DocViewer({ documentation }: DocViewerProps) {
                   </section>
                 )}
 
-                {/* Recommendations */}
                 {documentation.securityAnalysis.recommendations.length > 0 && (
                   <section>
                     <h3 className="text-lg font-semibold mb-3">Recommendations</h3>
@@ -349,16 +359,306 @@ export default function DocViewer({ documentation }: DocViewerProps) {
               <p className="text-muted-foreground">No security analysis available.</p>
             )}
           </TabsContent>
+
+          {/* ── Technical Tab ────────────────────────────── */}
+          {hasTechnical && (
+            <TabsContent value="technical" className="mt-4 space-y-6">
+              <TechnicalTab gen={generatedDocumentation!} />
+            </TabsContent>
+          )}
+
+          {/* ── Source Tab ───────────────────────────────── */}
+          {hasSource && (
+            <TabsContent value="source" className="mt-4">
+              <SourceTab sourceCode={sourceCode!} contractName={documentation.contractName} />
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>
   );
 }
 
+/* ── Functions Tab with Search ─────────────────────────── */
+
+function FunctionsTab({
+  functions,
+  genFunctions,
+}: {
+  functions: FunctionDoc[];
+  genFunctions?: GeneratedDocumentation["functions"];
+}) {
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return functions;
+    const q = search.toLowerCase();
+    return functions.filter(
+      (fn) =>
+        fn.name.toLowerCase().includes(q) ||
+        fn.signature.toLowerCase().includes(q) ||
+        fn.description.toLowerCase().includes(q)
+    );
+  }, [functions, search]);
+
+  const readFunctions = filtered.filter(
+    (f) => f.stateMutability === "view" || f.stateMutability === "pure"
+  );
+  const writeFunctions = filtered.filter(
+    (f) => f.stateMutability !== "view" && f.stateMutability !== "pure"
+  );
+
+  // Map gen functions by name for quick lookup
+  const genMap = useMemo(() => {
+    if (!genFunctions) return new Map<string, GeneratedDocumentation["functions"][number]>();
+    const m = new Map<string, GeneratedDocumentation["functions"][number]>();
+    for (const gf of genFunctions) {
+      m.set(gf.name, gf);
+    }
+    return m;
+  }, [genFunctions]);
+
+  return (
+    <>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search functions..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-muted-foreground text-sm">
+          {search ? `No functions matching "${search}"` : "No functions found."}
+        </p>
+      )}
+
+      {readFunctions.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Eye className="h-5 w-5 text-blue-500" />
+            Read Functions
+            <Badge variant="secondary" className="text-xs">{readFunctions.length}</Badge>
+          </h3>
+          <div className="space-y-2">
+            {readFunctions.map((fn, i) => (
+              <FunctionCard key={i} fn={fn} gen={genMap.get(fn.name)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {writeFunctions.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <EyeOff className="h-5 w-5 text-orange-500" />
+            Write Functions
+            <Badge variant="secondary" className="text-xs">{writeFunctions.length}</Badge>
+          </h3>
+          <div className="space-y-2">
+            {writeFunctions.map((fn, i) => (
+              <FunctionCard key={i} fn={fn} gen={genMap.get(fn.name)} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/* ── Technical Tab ─────────────────────────────────────── */
+
+function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
+  return (
+    <>
+      {/* Complexity & Metrics */}
+      <section>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Gauge className="h-5 w-5 text-primary" />
+          Metrics
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StatCard label="Complexity" value={gen.complexity} />
+          <StatCard label="Lines of Code" value={gen.linesOfCode} />
+          <StatCard label="Functions" value={gen.functions.length} />
+          <StatCard label="External Calls" value={gen.externalCalls.length} />
+        </div>
+      </section>
+
+      {/* Technical Overview */}
+      {gen.technicalOverview && (
+        <section>
+          <h3 className="text-lg font-semibold mb-2">Technical Overview</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">{gen.technicalOverview}</p>
+        </section>
+      )}
+
+      {/* Design Patterns */}
+      {gen.designPatterns.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Lightbulb className="h-5 w-5 text-yellow-500" />
+            Design Patterns
+          </h3>
+          <div className="space-y-2">
+            {gen.designPatterns.map((pattern, i) => (
+              <div key={i} className="flex items-start gap-2 border rounded-lg p-3">
+                <Lightbulb className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+                <span className="text-sm text-muted-foreground">{pattern}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Gas Optimizations */}
+      {gen.gasOptimizations.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Zap className="h-5 w-5 text-green-500" />
+            Gas Optimizations
+          </h3>
+          <div className="space-y-2">
+            {gen.gasOptimizations.map((opt, i) => (
+              <div key={i} className="flex items-start gap-2 border rounded-lg p-3">
+                <Zap className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                <span className="text-sm text-muted-foreground">{opt}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Inheritance Tree */}
+      {gen.inheritanceTree.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-purple-500" />
+            Inheritance Tree
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {gen.inheritanceTree.map((parent, i) => (
+              <Badge key={i} variant="outline" className="font-mono text-xs">
+                <GitBranch className="h-3 w-3 mr-1" />
+                {parent}
+              </Badge>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* External Calls */}
+      {gen.externalCalls.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <ExternalLink className="h-5 w-5 text-blue-500" />
+            External Calls
+          </h3>
+          <div className="border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left font-medium p-3">Contract</th>
+                  <th className="text-left font-medium p-3">Function</th>
+                  <th className="text-left font-medium p-3">Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gen.externalCalls.map((call, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-3 font-mono text-xs">{call.targetContract}</td>
+                    <td className="p-3 font-mono text-xs text-blue-500">{call.function}</td>
+                    <td className="p-3 text-xs text-muted-foreground">{call.purpose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Use Cases */}
+      {gen.useCases.length > 0 && (
+        <section>
+          <h3 className="text-lg font-semibold mb-3">Use Cases</h3>
+          <div className="space-y-2">
+            {gen.useCases.map((useCase, i) => (
+              <div key={i} className="flex items-start gap-2 border rounded-lg p-3">
+                <span className="text-xs font-bold text-primary mt-0.5 shrink-0">{i + 1}.</span>
+                <span className="text-sm text-muted-foreground">{useCase}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/* ── Source Tab ─────────────────────────────────────────── */
+
+function SourceTab({ sourceCode, contractName }: { sourceCode: string; contractName: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(sourceCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">{contractName}.sol</h3>
+        <Button variant="outline" size="sm" onClick={handleCopy}>
+          {copied ? (
+            <><Check className="h-4 w-4 mr-1" /> Copied</>
+          ) : (
+            <><Copy className="h-4 w-4 mr-1" /> Copy Source</>
+          )}
+        </Button>
+      </div>
+      <div className="border rounded-lg overflow-hidden h-[600px]">
+        <MonacoEditor
+          height="600px"
+          language="sol"
+          theme="vs-dark"
+          value={sourceCode}
+          options={{
+            readOnly: true,
+            minimap: { enabled: true },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+            wordWrap: "on",
+            lineNumbers: "on",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ── Sub-components ─────────────────────────────────────── */
 
-function FunctionCard({ fn }: { fn: FunctionDoc }) {
+function FunctionCard({
+  fn,
+  gen,
+}: {
+  fn: FunctionDoc;
+  gen?: GeneratedDocumentation["functions"][number];
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [sigCopied, setSigCopied] = useState(false);
+
+  const handleCopySignature = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(fn.signature);
+    setSigCopied(true);
+    setTimeout(() => setSigCopied(false), 2000);
+  };
 
   return (
     <div className="border rounded-lg">
@@ -383,6 +683,17 @@ function FunctionCard({ fn }: { fn: FunctionDoc }) {
               </Badge>
             ))}
         </div>
+        <button
+          onClick={handleCopySignature}
+          className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+          title="Copy signature"
+        >
+          {sigCopied ? (
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          ) : (
+            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </button>
       </button>
 
       {expanded && (
@@ -395,6 +706,33 @@ function FunctionCard({ fn }: { fn: FunctionDoc }) {
           {/* Description */}
           {fn.description && (
             <p className="text-sm text-muted-foreground">{fn.description}</p>
+          )}
+
+          {/* Business Logic (from GeneratedDocumentation) */}
+          {gen?.businessLogic && (
+            <div>
+              <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Business Logic</h5>
+              <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">{gen.businessLogic}</p>
+            </div>
+          )}
+
+          {/* Access Control (from GeneratedDocumentation) */}
+          {gen?.accessControl && gen.accessControl !== "None" && (
+            <div>
+              <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Access Control</h5>
+              <div className="flex items-center gap-1.5">
+                <Lock className="h-3 w-3 text-amber-500" />
+                <span className="text-xs text-muted-foreground">{gen.accessControl}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Gas Estimate */}
+          {gen?.gasEstimate && (
+            <div className="flex items-center gap-1.5">
+              <Zap className="h-3 w-3 text-green-500" />
+              <span className="text-xs text-muted-foreground">Gas: {gen.gasEstimate}</span>
+            </div>
           )}
 
           {/* Parameters */}
@@ -465,13 +803,28 @@ function FunctionCard({ fn }: { fn: FunctionDoc }) {
               </div>
             </div>
           )}
+
+          {/* Risks (from GeneratedDocumentation) */}
+          {gen?.risks && gen.risks.length > 0 && (
+            <div>
+              <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Risks</h5>
+              <div className="space-y-1">
+                {gen.risks.map((risk, i) => (
+                  <div key={i} className="flex items-start gap-1.5 text-xs">
+                    <Shield className="h-3 w-3 text-red-500 mt-0.5 shrink-0" />
+                    <span className="text-muted-foreground">{risk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="border rounded-lg p-3 text-center">
       <div className="text-2xl font-bold">{value}</div>

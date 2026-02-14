@@ -1,27 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import DocGenerator from "@/components/DocGenerator";
+import DocGenerator, { GenerationResult } from "@/components/DocGenerator";
 import DocViewer from "@/components/DocViewer";
 import DependencyGraph from "@/components/DependencyGraph";
-import { Documentation, DependencyGraph as DepGraphType } from "@/types";
+import { DependencyGraph as DepGraphType } from "@/types";
 
 export default function GeneratePage() {
-  const [documentation, setDocumentation] = useState<Documentation | null>(
-    null
-  );
+  const [result, setResult] = useState<GenerationResult | null>(null);
   const [depGraph, setDepGraph] = useState<DepGraphType | null>(null);
 
-  const handleDocGenerated = (doc: Documentation) => {
-    setDocumentation(doc);
+  const handleDocGenerated = (gen: GenerationResult) => {
+    setResult(gen);
     try {
       const mockGraph: DepGraphType = {
         nodes: [
           {
-            id: doc.contractName,
-            name: doc.contractName,
+            id: gen.documentation.contractName,
+            name: gen.documentation.contractName,
             type: "contract",
-            functions: doc.functions.map((f) => f.name),
+            functions: gen.documentation.functions.map((f) => f.name),
           },
         ],
         edges: [],
@@ -44,9 +42,13 @@ export default function GeneratePage() {
 
       <DocGenerator onDocGenerated={handleDocGenerated} />
 
-      {documentation && (
+      {result && (
         <>
-          <DocViewer documentation={documentation} />
+          <DocViewer
+            documentation={result.documentation}
+            generatedDocumentation={result.generatedDocumentation}
+            sourceCode={result.sourceCode}
+          />
           {depGraph && <DependencyGraph graph={depGraph} />}
         </>
       )}

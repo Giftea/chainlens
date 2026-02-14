@@ -844,6 +844,7 @@ export function generateDocumentationStream(
           });
           sendEvent(controller, "complete", {
             documentation: toDocumentation(cached, network),
+            generatedDocumentation: cached,
           });
           controller.close();
           return;
@@ -943,9 +944,12 @@ export function generateDocumentationStream(
         // Cache the result
         setDocCache(address, chainId, doc);
 
-        // Send the legacy Documentation (smaller than full GeneratedDocumentation)
+        // Send both legacy Documentation and full GeneratedDocumentation
         const legacyDoc = toDocumentation(doc, network);
-        sendEvent(controller, "complete", { documentation: legacyDoc });
+        sendEvent(controller, "complete", {
+          documentation: legacyDoc,
+          generatedDocumentation: doc,
+        });
         controller.close();
       } catch (error) {
         const message =
