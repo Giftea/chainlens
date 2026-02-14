@@ -14,9 +14,9 @@ export const NETWORKS: Record<NetworkType, NetworkConfig> = {
     },
   },
   "bsc-testnet": {
-    name: "BNB Smart Chain Testnet",
+    name: "BNB Testnet",
     chainId: 97,
-    rpcUrl: "https://data-seed-prebsc-1-s1.binance.org:8545/",
+    rpcUrl: "https://data-seed-prebsc-1-s1.bnbchain.org:8545/",
     explorerUrl: "https://testnet.bscscan.com",
     explorerApiUrl: "https://api-testnet.bscscan.com/api",
     nativeCurrency: {
@@ -25,20 +25,64 @@ export const NETWORKS: Record<NetworkType, NetworkConfig> = {
       decimals: 18,
     },
   },
+  opbnb: {
+    name: "opBNB",
+    chainId: 204,
+    rpcUrl: "https://opbnb-mainnet-rpc.bnbchain.org",
+    explorerUrl: "https://opbnb.bscscan.com",
+    explorerApiUrl: "https://api-opbnb.bscscan.com/api",
+    nativeCurrency: {
+      name: "BNB",
+      symbol: "BNB",
+      decimals: 18,
+    },
+  },
 };
 
-export const DEFAULT_NETWORK: NetworkType = "bsc-mainnet";
+/** Contract addresses per network */
+export const CONTRACT_ADDRESSES: Record<NetworkType, string> = {
+  "bsc-mainnet": process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET || "",
+  "bsc-testnet":
+    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET ||
+    "0x94e7DAaeB4d28fF2e71912fd06818b41009de47e",
+  opbnb: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_OPBNB || "",
+};
+
+export const DEFAULT_NETWORK: NetworkType = "bsc-testnet";
 
 export function getNetworkConfig(network: NetworkType): NetworkConfig {
   return NETWORKS[network];
 }
 
-export function getExplorerUrl(network: NetworkType, address: string): string {
+export function getContractAddress(network: NetworkType): string {
+  return CONTRACT_ADDRESSES[network];
+}
+
+export function getExplorerUrl(
+  network: NetworkType,
+  address: string
+): string {
   const config = NETWORKS[network];
   return `${config.explorerUrl}/address/${address}`;
 }
 
-export function getExplorerTxUrl(network: NetworkType, txHash: string): string {
+export function getExplorerTxUrl(
+  network: NetworkType,
+  txHash: string
+): string {
   const config = NETWORKS[network];
   return `${config.explorerUrl}/tx/${txHash}`;
 }
+
+export function getNetworkByChainId(chainId: number): NetworkType | null {
+  for (const [key, config] of Object.entries(NETWORKS)) {
+    if (config.chainId === chainId) return key as NetworkType;
+  }
+  return null;
+}
+
+export const SUPPORTED_NETWORKS: { value: NetworkType; label: string }[] = [
+  { value: "bsc-mainnet", label: "BSC Mainnet" },
+  { value: "bsc-testnet", label: "BSC Testnet" },
+  { value: "opbnb", label: "opBNB" },
+];

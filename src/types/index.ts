@@ -94,6 +94,35 @@ export interface SourceLocation {
 
 // --- Documentation Types ---
 
+/** Matches the onchain DocRegistry.Documentation struct */
+export interface OnchainDocumentation {
+  contractAddress: string;
+  contractName: string;
+  ipfsHash: string;
+  generator: string;
+  timestamp: number;
+  version: number;
+  chainId: number;
+  contentHash: string;
+  functionCount: number;
+  stateVarCount: number;
+  hasPlayground: boolean;
+  hasDiff: boolean;
+}
+
+/** AI-generated documentation content (stored in IPFS) */
+export interface GeneratedDoc {
+  contractName: string;
+  summary: string;
+  technicalOverview: string;
+  stateVariables: StateVariableDoc[];
+  functions: FunctionDoc[];
+  events: EventDoc[];
+  useCases: string[];
+  securityNotes: string[];
+}
+
+/** Full documentation used in the app (combines onchain + generated) */
 export interface Documentation {
   id: string;
   contractAddress: string;
@@ -252,17 +281,15 @@ export interface IPFSUploadResult {
   size: number;
 }
 
-export interface OnchainDocRecord {
-  contractAddress: string;
-  ipfsCid: string;
-  documentVersion: number;
-  generator: string;
-  timestamp: number;
+export interface ContractAddressMap {
+  mainnet?: string;
+  testnet?: string;
+  opbnb?: string;
 }
 
 // --- Network Types ---
 
-export type NetworkType = "bsc-mainnet" | "bsc-testnet";
+export type NetworkType = "bsc-mainnet" | "bsc-testnet" | "opbnb";
 
 export interface NetworkConfig {
   name: string;
