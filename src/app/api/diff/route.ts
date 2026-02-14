@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchContractSource } from "@/lib/contractFetcher";
+import { fetchContractByNetwork } from "@/lib/contractFetcher";
 import { compareContracts } from "@/lib/diffEngine";
 import { NetworkType } from "@/types";
 
@@ -19,9 +19,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const net = network || "bsc-mainnet";
+
     const [contractA, contractB] = await Promise.all([
-      fetchContractSource(addressA, network || "bsc-mainnet"),
-      fetchContractSource(addressB, network || "bsc-mainnet"),
+      fetchContractByNetwork(addressA, net),
+      fetchContractByNetwork(addressB, net),
     ]);
 
     const diff = compareContracts(
@@ -43,7 +45,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Diff error:", error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to compare contracts" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to compare contracts",
+      },
       { status: 500 }
     );
   }

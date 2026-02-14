@@ -16,6 +16,30 @@ export interface ContractInfo {
   verified: boolean;
 }
 
+/** Result from BSCScan contract source fetch */
+export interface ContractSource {
+  address: string;
+  contractName: string;
+  compiler: string;
+  sourceCode: string;
+  abi: string;
+  implementation?: string;
+  isProxy: boolean;
+  verified: boolean;
+  chainId: number;
+  sourceFiles: SourceFile[];
+  optimizationUsed: boolean;
+  runs: number;
+  evmVersion: string;
+  license: string;
+}
+
+/** Individual source file from a multi-file contract */
+export interface SourceFile {
+  path: string;
+  content: string;
+}
+
 export interface AbiItem {
   type: "function" | "event" | "constructor" | "fallback" | "receive" | "error";
   name?: string;
