@@ -1,0 +1,109 @@
+import { Documentation } from "@/types";
+
+export function exportToHTML(doc: Documentation): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(doc.contractName)} - ChainLens Documentation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 2rem; margin-bottom: 0.5rem; color: #F7B924; }
+    h2 { font-size: 1.5rem; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid #F7B924; }
+    h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; }
+    .meta { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
+    .meta code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 0.85rem; }
+    pre { background: #1a1a2e; color: #e0e0e0; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0.5rem 0 1rem; }
+    code { font-family: 'Fira Code', monospace; font-size: 0.9rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { padding: 8px 12px; text-align: left; border: 1px solid #e0e0e0; }
+    th { background: #f7f7f7; font-weight: 600; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .badge-low { background: #d4edda; color: #155724; }
+    .badge-medium { background: #fff3cd; color: #856404; }
+    .badge-high { background: #f8d7da; color: #721c24; }
+    .badge-critical { background: #721c24; color: #fff; }
+    .finding { border-left: 4px solid #F7B924; padding: 12px 16px; margin: 1rem 0; background: #fafafa; border-radius: 0 4px 4px 0; }
+    .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e0e0e0; color: #888; font-size: 0.85rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(doc.contractName)}</h1>
+  <div class="meta">
+    <p>Address: <code>${escapeHtml(doc.contractAddress)}</code></p>
+    <p>Network: ${escapeHtml(doc.network)} | Generated: ${escapeHtml(doc.generatedAt)}</p>
+  </div>
+
+  <h2>Overview</h2>
+  <p>${escapeHtml(doc.overview)}</p>
+
+  ${doc.functions.length > 0 ? `
+  <h2>Functions</h2>
+  ${doc.functions.map((func) => `
+    <h3>${escapeHtml(func.name)}</h3>
+    <pre><code>${escapeHtml(func.signature)}</code></pre>
+    <p>${escapeHtml(func.description)}</p>
+    ${func.parameters.length > 0 ? `
+    <table>
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>${func.parameters.map((p) => `<tr><td><code>${escapeHtml(p.name)}</code></td><td><code>${escapeHtml(p.type)}</code></td><td>${escapeHtml(p.description)}</td></tr>`).join("")}</tbody>
+    </table>` : ""}
+    ${func.returns.length > 0 ? `
+    <table>
+      <thead><tr><th>Return</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>${func.returns.map((r) => `<tr><td><code>${escapeHtml(r.name || "-")}</code></td><td><code>${escapeHtml(r.type)}</code></td><td>${escapeHtml(r.description)}</td></tr>`).join("")}</tbody>
+    </table>` : ""}
+  `).join("")}` : ""}
+
+  ${doc.events.length > 0 ? `
+  <h2>Events</h2>
+  ${doc.events.map((event) => `
+    <h3>${escapeHtml(event.name)}</h3>
+    <p>${escapeHtml(event.description)}</p>
+    ${event.parameters.length > 0 ? `
+    <table>
+      <thead><tr><th>Parameter</th><th>Type</th><th>Indexed</th><th>Description</th></tr></thead>
+      <tbody>${event.parameters.map((p) => `<tr><td><code>${escapeHtml(p.name)}</code></td><td><code>${escapeHtml(p.type)}</code></td><td>${p.indexed ? "Yes" : "No"}</td><td>${escapeHtml(p.description)}</td></tr>`).join("")}</tbody>
+    </table>` : ""}
+  `).join("")}` : ""}
+
+  ${doc.stateVariables.length > 0 ? `
+  <h2>State Variables</h2>
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Visibility</th><th>Description</th></tr></thead>
+    <tbody>${doc.stateVariables.map((v) => `<tr><td><code>${escapeHtml(v.name)}</code></td><td><code>${escapeHtml(v.type)}</code></td><td>${escapeHtml(v.visibility)}</td><td>${escapeHtml(v.description)}</td></tr>`).join("")}</tbody>
+  </table>` : ""}
+
+  ${doc.securityAnalysis ? `
+  <h2>Security Analysis</h2>
+  <p>Risk Level: <span class="badge badge-${doc.securityAnalysis.riskLevel}">${doc.securityAnalysis.riskLevel.toUpperCase()}</span></p>
+  ${doc.securityAnalysis.findings.map((f) => `
+    <div class="finding">
+      <strong>[${escapeHtml(f.severity.toUpperCase())}]</strong> ${escapeHtml(f.title)}
+      <p>${escapeHtml(f.description)}</p>
+    </div>
+  `).join("")}
+  ${doc.securityAnalysis.recommendations.length > 0 ? `
+    <h3>Recommendations</h3>
+    <ul>${doc.securityAnalysis.recommendations.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+  ` : ""}` : ""}
+
+  <div class="footer">
+    Generated by ChainLens 2.0 - AI-Powered Smart Contract Documentation
+  </div>
+</body>
+</html>`;
+}
+
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  };
+  return text.replace(/[&<>"']/g, (c) => map[c]);
+}
