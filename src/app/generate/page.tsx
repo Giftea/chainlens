@@ -48,6 +48,7 @@ export default function GeneratePage() {
             documentation={result.documentation}
             generatedDocumentation={result.generatedDocumentation}
             sourceCode={result.sourceCode}
+            abi={result.abi}
           />
           {depGraph && <DependencyGraph graph={depGraph} />}
         </>

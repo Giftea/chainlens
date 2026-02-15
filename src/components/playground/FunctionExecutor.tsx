@@ -12,6 +12,9 @@ import {
   AlertTriangle,
   Zap,
   Shield,
+  Copy,
+  Check,
+  RotateCcw,
 } from "lucide-react";
 import { ethers } from "ethers";
 import { AbiItem, NetworkType } from "@/types";
@@ -301,6 +304,68 @@ export function FunctionExecutor({
   const needsWallet = !func.isReadOnly;
   const canExecute = !isExecuting && (!needsWallet || (wallet.connected && wallet.isCorrectNetwork));
 
+  const [codeCopied, setCodeCopied] = useState(false);
+
+  const generateEthersCode = useCallback((): string => {
+    const args = func.inputs.map((input) => {
+      const val = inputs[input.name] || "";
+      if (input.type === "address" || input.type === "string" || input.type.startsWith("bytes")) {
+        return `"${val}"`;
+      }
+      if (input.type === "bool") return val === "true" ? "true" : "false";
+      if (input.type.endsWith("[]")) return val || "[]";
+      return val || "0";
+    });
+
+    const argsStr = args.join(", ");
+    const lines = [
+      `import { ethers } from "ethers";`,
+      ``,
+      `const provider = new ethers.JsonRpcProvider("YOUR_RPC_URL");`,
+    ];
+
+    if (func.isReadOnly) {
+      lines.push(`const contract = new ethers.Contract("${address}", ABI, provider);`);
+      lines.push(`const result = await contract.${func.name}(${argsStr});`);
+      lines.push(`console.log(result);`);
+    } else {
+      lines.push(`const signer = await provider.getSigner();`);
+      lines.push(`const contract = new ethers.Contract("${address}", ABI, signer);`);
+      if (func.requiresValue && payableValue) {
+        lines.push(`const tx = await contract.${func.name}(${argsStr}, { value: ethers.parseEther("${payableValue}") });`);
+      } else {
+        lines.push(`const tx = await contract.${func.name}(${argsStr});`);
+      }
+      lines.push(`const receipt = await tx.wait();`);
+      lines.push(`console.log("Tx Hash:", receipt.hash);`);
+    }
+
+    return lines.join("\n");
+  }, [func, inputs, address, payableValue]);
+
+  const copyAsCode = useCallback(async () => {
+    const code = generateEthersCode();
+    await navigator.clipboard.writeText(code);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  }, [generateEthersCode]);
+
+  // Keyboard shortcuts: Ctrl+Enter to execute, Escape to clear
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (canExecute) execute();
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        clearForm();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [canExecute, execute, clearForm]);
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -459,6 +524,21 @@ export function FunctionExecutor({
             <Zap className="h-4 w-4" />
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          onClick={copyAsCode}
+          disabled={isExecuting}
+          title="Copy as ethers.js code"
+        >
+          {codeCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </div>
+
+      {/* Keyboard shortcut hint */}
+      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+        <span><kbd className="px-1 py-0.5 rounded border bg-muted text-[9px]">Ctrl+Enter</kbd> Execute</span>
+        <span><kbd className="px-1 py-0.5 rounded border bg-muted text-[9px]">Esc</kbd> Clear</span>
       </div>
 
       {/* Security note for write functions */}
@@ -470,7 +550,23 @@ export function FunctionExecutor({
       )}
 
       {/* Result */}
-      {result && <ResultDisplay result={result} network={network} />}
+      {result && (
+        <div className="space-y-2">
+          <ResultDisplay result={result} network={network} />
+          {!result.success && result.error && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={execute}
+              disabled={isExecuting}
+              className="text-xs"
+            >
+              <RotateCcw className="h-3 w-3 mr-1" />
+              Try Again
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

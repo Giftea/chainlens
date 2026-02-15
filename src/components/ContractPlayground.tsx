@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Play } from "lucide-react";
@@ -16,17 +16,30 @@ interface ContractPlaygroundProps {
   address: string;
   abi: AbiItem[];
   network: NetworkType;
+  initialFunctionName?: string | null;
 }
 
-export default function ContractPlayground({ address, abi, network }: ContractPlaygroundProps) {
+export default function ContractPlayground({ address, abi, network, initialFunctionName }: ContractPlaygroundProps) {
   const analyzedABI = useMemo(() => analyzeABIFull(abi), [abi]);
 
   const [selectedFunction, setSelectedFunction] = useState<AnalyzedFunction | null>(
     analyzedABI.functions[0] || null
   );
 
+  // Handle initialFunctionName from DocViewer "Test in Playground"
+  useEffect(() => {
+    if (initialFunctionName) {
+      const func = analyzedABI.functions.find((f) => f.name === initialFunctionName);
+      if (func) setSelectedFunction(func);
+    }
+  }, [initialFunctionName, analyzedABI.functions]);
+
   const wallet = useWalletState(network);
   const history = useExecutionHistory();
+
+  const handleSelectFunction = useCallback((func: AnalyzedFunction) => {
+    setSelectedFunction(func);
+  }, []);
 
   return (
     <Card className="w-full">
@@ -55,18 +68,19 @@ export default function ContractPlayground({ address, abi, network }: ContractPl
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-4 min-h-[500px]">
+        {/* Desktop: side-by-side, Mobile: stacked */}
+        <div className="flex flex-col md:flex-row gap-4 min-h-[400px] md:min-h-[500px]">
           {/* Left panel - Function list */}
-          <div className="w-[30%] border-r pr-4 shrink-0">
+          <div className="w-full md:w-[30%] md:border-r md:pr-4 shrink-0 border-b md:border-b-0 pb-4 md:pb-0">
             <FunctionList
               analyzedABI={analyzedABI}
               selectedFunction={selectedFunction}
-              onSelectFunction={setSelectedFunction}
+              onSelectFunction={handleSelectFunction}
             />
           </div>
 
           {/* Right panel - Executor */}
-          <div className="w-[70%] pl-2 space-y-4 overflow-y-auto">
+          <div className="w-full md:w-[70%] md:pl-2 space-y-4 overflow-y-auto">
             {selectedFunction ? (
               <FunctionExecutor
                 func={selectedFunction}
@@ -77,8 +91,8 @@ export default function ContractPlayground({ address, abi, network }: ContractPl
                 onResult={history.addEntry}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                Select a function from the left panel to get started
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm py-12">
+                Select a function to get started
               </div>
             )}
 

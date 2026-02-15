@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { FileText, Loader2, Shield, Zap, CheckCircle2, AlertCircle } from "lucide-react";
-import { NetworkType, Documentation, GeneratedDocumentation } from "@/types";
+import { NetworkType, Documentation, GeneratedDocumentation, AbiItem } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
 
 /** Result passed to the parent page */
@@ -16,6 +16,7 @@ export interface GenerationResult {
   generatedDocumentation?: GeneratedDocumentation;
   sourceCode?: string;
   contractName: string;
+  abi?: AbiItem[];
 }
 
 interface DocGeneratorProps {
@@ -178,6 +179,7 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
         generatedDocumentation,
         sourceCode: contract.sourceCode,
         contractName: contract.name,
+        abi: contract.abi,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred");

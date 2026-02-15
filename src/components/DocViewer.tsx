@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -30,23 +30,28 @@ import {
   Lightbulb,
   Gauge,
   ExternalLink,
+  Play,
 } from "lucide-react";
-import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation } from "@/types";
+import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation, AbiItem } from "@/types";
 import { exportToMarkdown } from "@/lib/exporters/markdown";
 import { exportToPDF } from "@/lib/exporters/pdf";
 import { exportToHTML } from "@/lib/exporters/html";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
+const ContractPlayground = dynamic(() => import("@/components/ContractPlayground"), { ssr: false });
 
 interface DocViewerProps {
   documentation: Documentation;
   generatedDocumentation?: GeneratedDocumentation;
   sourceCode?: string;
+  abi?: AbiItem[];
 }
 
-export default function DocViewer({ documentation, generatedDocumentation, sourceCode }: DocViewerProps) {
+export default function DocViewer({ documentation, generatedDocumentation, sourceCode, abi }: DocViewerProps) {
   const [exporting, setExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+  const [playgroundFunctionName, setPlaygroundFunctionName] = useState<string | null>(null);
 
   const handleExport = async (format: ExportFormat) => {
     setExporting(true);
@@ -77,12 +82,18 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
 
   const hasTechnical = !!generatedDocumentation;
   const hasSource = !!sourceCode;
+  const hasPlayground = !!abi && abi.length > 0;
+
+  const handleTestInPlayground = useCallback((functionName: string) => {
+    setPlaygroundFunctionName(functionName);
+    setActiveTab("playground");
+  }, []);
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 gap-3">
         <div>
-          <CardTitle className="text-2xl">{documentation.contractName}</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">{documentation.contractName}</CardTitle>
           <div className="flex gap-2 mt-2 flex-wrap">
             <Badge variant="outline">{documentation.network}</Badge>
             <Badge variant="outline" className="font-mono text-xs">
@@ -118,7 +129,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="overview">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">
               <BookOpen className="h-4 w-4 mr-1" /> Overview
@@ -145,9 +156,14 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
                 <FileText className="h-4 w-4 mr-1" /> Source
               </TabsTrigger>
             )}
+            {hasPlayground && (
+              <TabsTrigger value="playground" className="text-primary">
+                <Play className="h-4 w-4 mr-1" /> Playground
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          {/* ── Overview Tab ─────────────────────────────── */}
+          {/* -- Overview Tab -- */}
           <TabsContent value="overview" className="mt-4 space-y-6">
             {generatedDocumentation?.executiveSummary && (
               <section>
@@ -227,15 +243,17 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             )}
           </TabsContent>
 
-          {/* ── Functions Tab ────────────────────────────── */}
+          {/* -- Functions Tab -- */}
           <TabsContent value="functions" className="mt-4 space-y-4">
             <FunctionsTab
               functions={documentation.functions}
               genFunctions={generatedDocumentation?.functions}
+              hasPlayground={hasPlayground}
+              onTestInPlayground={handleTestInPlayground}
             />
           </TabsContent>
 
-          {/* ── Events Tab ───────────────────────────────── */}
+          {/* -- Events Tab -- */}
           <TabsContent value="events" className="mt-4 space-y-3">
             {documentation.events.length > 0 ? (
               documentation.events.map((evt, i) => (
@@ -249,7 +267,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
                       <p className="text-xs text-muted-foreground mb-2">{evt.description}</p>
                     )}
                     {evt.parameters.length > 0 && (
-                      <div className="bg-muted/50 rounded-md p-2">
+                      <div className="bg-muted/50 rounded-md p-2 overflow-x-auto">
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="text-muted-foreground">
@@ -265,7 +283,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
                                 <td className="font-mono py-1">{p.name}</td>
                                 <td className="font-mono py-1 text-blue-500">{p.type}</td>
                                 <td className="py-1">{p.indexed ? "Yes" : "No"}</td>
-                                <td className="py-1 text-muted-foreground">{p.description || "—"}</td>
+                                <td className="py-1 text-muted-foreground">{p.description || "\u2014"}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -280,10 +298,10 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             )}
           </TabsContent>
 
-          {/* ── State Variables Tab ───────────────────────── */}
+          {/* -- State Variables Tab -- */}
           <TabsContent value="state" className="mt-4">
             {documentation.stateVariables.length > 0 ? (
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
@@ -309,7 +327,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
                           </div>
                         </td>
                         <td className="p-3 text-xs text-muted-foreground max-w-xs">
-                          {sv.description || "—"}
+                          {sv.description || "\u2014"}
                         </td>
                       </tr>
                     ))}
@@ -321,7 +339,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             )}
           </TabsContent>
 
-          {/* ── Security Tab ─────────────────────────────── */}
+          {/* -- Security Tab -- */}
           <TabsContent value="security" className="mt-4 space-y-4">
             {documentation.securityAnalysis ? (
               <>
@@ -360,17 +378,29 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             )}
           </TabsContent>
 
-          {/* ── Technical Tab ────────────────────────────── */}
+          {/* -- Technical Tab -- */}
           {hasTechnical && (
             <TabsContent value="technical" className="mt-4 space-y-6">
               <TechnicalTab gen={generatedDocumentation!} />
             </TabsContent>
           )}
 
-          {/* ── Source Tab ───────────────────────────────── */}
+          {/* -- Source Tab -- */}
           {hasSource && (
             <TabsContent value="source" className="mt-4">
               <SourceTab sourceCode={sourceCode!} contractName={documentation.contractName} />
+            </TabsContent>
+          )}
+
+          {/* -- Playground Tab -- */}
+          {hasPlayground && (
+            <TabsContent value="playground" className="mt-4">
+              <ContractPlayground
+                address={documentation.contractAddress}
+                abi={abi!}
+                network={documentation.network}
+                initialFunctionName={playgroundFunctionName}
+              />
             </TabsContent>
           )}
         </Tabs>
@@ -379,14 +409,18 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
   );
 }
 
-/* ── Functions Tab with Search ─────────────────────────── */
+/* -- Functions Tab with Search -- */
 
 function FunctionsTab({
   functions,
   genFunctions,
+  hasPlayground,
+  onTestInPlayground,
 }: {
   functions: FunctionDoc[];
   genFunctions?: GeneratedDocumentation["functions"];
+  hasPlayground: boolean;
+  onTestInPlayground: (functionName: string) => void;
 }) {
   const [search, setSearch] = useState("");
 
@@ -408,7 +442,6 @@ function FunctionsTab({
     (f) => f.stateMutability !== "view" && f.stateMutability !== "pure"
   );
 
-  // Map gen functions by name for quick lookup
   const genMap = useMemo(() => {
     if (!genFunctions) return new Map<string, GeneratedDocumentation["functions"][number]>();
     const m = new Map<string, GeneratedDocumentation["functions"][number]>();
@@ -445,7 +478,13 @@ function FunctionsTab({
           </h3>
           <div className="space-y-2">
             {readFunctions.map((fn, i) => (
-              <FunctionCard key={i} fn={fn} gen={genMap.get(fn.name)} />
+              <FunctionCard
+                key={i}
+                fn={fn}
+                gen={genMap.get(fn.name)}
+                hasPlayground={hasPlayground}
+                onTestInPlayground={onTestInPlayground}
+              />
             ))}
           </div>
         </section>
@@ -460,7 +499,13 @@ function FunctionsTab({
           </h3>
           <div className="space-y-2">
             {writeFunctions.map((fn, i) => (
-              <FunctionCard key={i} fn={fn} gen={genMap.get(fn.name)} />
+              <FunctionCard
+                key={i}
+                fn={fn}
+                gen={genMap.get(fn.name)}
+                hasPlayground={hasPlayground}
+                onTestInPlayground={onTestInPlayground}
+              />
             ))}
           </div>
         </section>
@@ -469,12 +514,11 @@ function FunctionsTab({
   );
 }
 
-/* ── Technical Tab ─────────────────────────────────────── */
+/* -- Technical Tab -- */
 
 function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
   return (
     <>
-      {/* Complexity & Metrics */}
       <section>
         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Gauge className="h-5 w-5 text-primary" />
@@ -488,7 +532,6 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </div>
       </section>
 
-      {/* Technical Overview */}
       {gen.technicalOverview && (
         <section>
           <h3 className="text-lg font-semibold mb-2">Technical Overview</h3>
@@ -496,7 +539,6 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </section>
       )}
 
-      {/* Design Patterns */}
       {gen.designPatterns.length > 0 && (
         <section>
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -514,7 +556,6 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </section>
       )}
 
-      {/* Gas Optimizations */}
       {gen.gasOptimizations.length > 0 && (
         <section>
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -532,7 +573,6 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </section>
       )}
 
-      {/* Inheritance Tree */}
       {gen.inheritanceTree.length > 0 && (
         <section>
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -550,14 +590,13 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </section>
       )}
 
-      {/* External Calls */}
       {gen.externalCalls.length > 0 && (
         <section>
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <ExternalLink className="h-5 w-5 text-blue-500" />
             External Calls
           </h3>
-          <div className="border rounded-lg overflow-hidden">
+          <div className="border rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
@@ -580,7 +619,6 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
         </section>
       )}
 
-      {/* Use Cases */}
       {gen.useCases.length > 0 && (
         <section>
           <h3 className="text-lg font-semibold mb-3">Use Cases</h3>
@@ -598,7 +636,7 @@ function TechnicalTab({ gen }: { gen: GeneratedDocumentation }) {
   );
 }
 
-/* ── Source Tab ─────────────────────────────────────────── */
+/* -- Source Tab -- */
 
 function SourceTab({ sourceCode, contractName }: { sourceCode: string; contractName: string }) {
   const [copied, setCopied] = useState(false);
@@ -641,14 +679,18 @@ function SourceTab({ sourceCode, contractName }: { sourceCode: string; contractN
   );
 }
 
-/* ── Sub-components ─────────────────────────────────────── */
+/* -- Sub-components -- */
 
 function FunctionCard({
   fn,
   gen,
+  hasPlayground,
+  onTestInPlayground,
 }: {
   fn: FunctionDoc;
   gen?: GeneratedDocumentation["functions"][number];
+  hasPlayground: boolean;
+  onTestInPlayground: (functionName: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [sigCopied, setSigCopied] = useState(false);
@@ -658,6 +700,11 @@ function FunctionCard({
     await navigator.clipboard.writeText(fn.signature);
     setSigCopied(true);
     setTimeout(() => setSigCopied(false), 2000);
+  };
+
+  const handleTestClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTestInPlayground(fn.name);
   };
 
   return (
@@ -677,23 +724,34 @@ function FunctionCard({
           <MutabilityBadge mutability={fn.stateMutability} />
           {fn.modifiers.length > 0 &&
             fn.modifiers.map((m, i) => (
-              <Badge key={i} variant="outline" className="text-[10px] text-amber-600">
+              <Badge key={i} variant="outline" className="text-[10px] text-amber-600 hidden sm:inline-flex">
                 <Lock className="h-2.5 w-2.5 mr-0.5" />
                 {m}
               </Badge>
             ))}
         </div>
-        <button
-          onClick={handleCopySignature}
-          className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-          title="Copy signature"
-        >
-          {sigCopied ? (
-            <Check className="h-3.5 w-3.5 text-green-500" />
-          ) : (
-            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+        <div className="flex items-center gap-1 shrink-0">
+          {hasPlayground && (
+            <button
+              onClick={handleTestClick}
+              className="p-1 rounded hover:bg-primary/10 transition-colors"
+              title="Test in Playground"
+            >
+              <Play className="h-3.5 w-3.5 text-primary" />
+            </button>
           )}
-        </button>
+          <button
+            onClick={handleCopySignature}
+            className="p-1 rounded hover:bg-muted transition-colors"
+            title="Copy signature"
+          >
+            {sigCopied ? (
+              <Check className="h-3.5 w-3.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       </button>
 
       {expanded && (
@@ -708,7 +766,7 @@ function FunctionCard({
             <p className="text-sm text-muted-foreground">{fn.description}</p>
           )}
 
-          {/* Business Logic (from GeneratedDocumentation) */}
+          {/* Business Logic */}
           {gen?.businessLogic && (
             <div>
               <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Business Logic</h5>
@@ -716,7 +774,7 @@ function FunctionCard({
             </div>
           )}
 
-          {/* Access Control (from GeneratedDocumentation) */}
+          {/* Access Control */}
           {gen?.accessControl && gen.accessControl !== "None" && (
             <div>
               <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Access Control</h5>
@@ -739,7 +797,7 @@ function FunctionCard({
           {fn.parameters.length > 0 && (
             <div>
               <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Parameters</h5>
-              <div className="bg-muted/50 rounded-md p-2">
+              <div className="bg-muted/50 rounded-md p-2 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-muted-foreground">
@@ -753,7 +811,7 @@ function FunctionCard({
                       <tr key={i} className="border-t border-border/50">
                         <td className="font-mono py-1">{p.name || `param${i}`}</td>
                         <td className="font-mono py-1 text-blue-500">{p.type}</td>
-                        <td className="py-1 text-muted-foreground">{p.description || "—"}</td>
+                        <td className="py-1 text-muted-foreground">{p.description || "\u2014"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -766,7 +824,7 @@ function FunctionCard({
           {fn.returns.length > 0 && (
             <div>
               <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Returns</h5>
-              <div className="bg-muted/50 rounded-md p-2">
+              <div className="bg-muted/50 rounded-md p-2 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-muted-foreground">
@@ -780,7 +838,7 @@ function FunctionCard({
                       <tr key={i} className="border-t border-border/50">
                         <td className="font-mono py-1">{r.name || `return${i}`}</td>
                         <td className="font-mono py-1 text-blue-500">{r.type}</td>
-                        <td className="py-1 text-muted-foreground">{r.description || "—"}</td>
+                        <td className="py-1 text-muted-foreground">{r.description || "\u2014"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -804,7 +862,7 @@ function FunctionCard({
             </div>
           )}
 
-          {/* Risks (from GeneratedDocumentation) */}
+          {/* Risks */}
           {gen?.risks && gen.risks.length > 0 && (
             <div>
               <h5 className="text-xs font-semibold uppercase text-muted-foreground mb-1">Risks</h5>
@@ -817,6 +875,19 @@ function FunctionCard({
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Test in Playground button */}
+          {hasPlayground && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestClick}
+              className="text-xs"
+            >
+              <Play className="h-3 w-3 mr-1" />
+              Test in Playground
+            </Button>
           )}
         </div>
       )}
