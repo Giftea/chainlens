@@ -444,6 +444,27 @@ export interface IPFSUploadResult {
   cid: string;
   url: string;
   size: number;
+  timestamp: number;
+}
+
+/** Bundle of documentation + metadata uploaded to IPFS */
+export interface DocumentationBundle {
+  documentation: Documentation;
+  generatedDocumentation?: GeneratedDocumentation;
+  sourceCode?: string;
+  abi?: string;
+  metadata: {
+    contractAddress: string;
+    contractName: string;
+    network: NetworkType;
+    chainId: number;
+    compiler?: string;
+    generatedAt: string;
+    generatedBy: string;
+    version: number;
+    chainlensVersion: string;
+  };
+  contentHash: string;
 }
 
 export interface ContractAddressMap {

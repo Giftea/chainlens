@@ -31,11 +31,17 @@ import {
   Gauge,
   ExternalLink,
   Play,
+  Upload,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  Link,
 } from "lucide-react";
-import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation, AbiItem } from "@/types";
+import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation, AbiItem, NetworkType } from "@/types";
 import { exportToMarkdown } from "@/lib/exporters/markdown";
 import { exportToPDF } from "@/lib/exporters/pdf";
 import { exportToHTML } from "@/lib/exporters/html";
+import { getNetworkConfig } from "@/config/chains";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -48,10 +54,18 @@ interface DocViewerProps {
   abi?: AbiItem[];
 }
 
+type IPFSState =
+  | { status: "idle" }
+  | { status: "uploading" }
+  | { status: "success"; cid: string; url: string; contentHash: string }
+  | { status: "error"; message: string };
+
 export default function DocViewer({ documentation, generatedDocumentation, sourceCode, abi }: DocViewerProps) {
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [playgroundFunctionName, setPlaygroundFunctionName] = useState<string | null>(null);
+  const [ipfsState, setIpfsState] = useState<IPFSState>({ status: "idle" });
+  const [cidCopied, setCidCopied] = useState(false);
 
   const handleExport = async (format: ExportFormat) => {
     setExporting(true);
@@ -77,6 +91,52 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handlePublishToIPFS = async () => {
+    setIpfsState({ status: "uploading" });
+    try {
+      const networkConfig = getNetworkConfig(documentation.network as NetworkType);
+      const response = await fetch("/api/upload-ipfs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "bundle",
+          documentation,
+          generatedDocumentation,
+          sourceCode,
+          abi: abi ? JSON.stringify(abi) : undefined,
+          network: documentation.network,
+          chainId: networkConfig.chainId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      setIpfsState({
+        status: "success",
+        cid: data.cid,
+        url: data.url,
+        contentHash: data.contentHash,
+      });
+    } catch (error) {
+      setIpfsState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Upload failed",
+      });
+    }
+  };
+
+  const handleCopyCid = async () => {
+    if (ipfsState.status === "success") {
+      await navigator.clipboard.writeText(ipfsState.cid);
+      setCidCopied(true);
+      setTimeout(() => setCidCopied(false), 2000);
     }
   };
 
@@ -116,7 +176,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => handleExport("markdown")} disabled={exporting}>
             <FileText className="h-4 w-4 mr-1" /> MD
           </Button>
@@ -126,6 +186,67 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
           <Button variant="outline" size="sm" onClick={() => handleExport("html")} disabled={exporting}>
             <Globe className="h-4 w-4 mr-1" /> HTML
           </Button>
+          <div className="w-px bg-border mx-1 hidden sm:block" />
+          {ipfsState.status === "idle" && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handlePublishToIPFS}
+              className="bg-primary"
+            >
+              <Upload className="h-4 w-4 mr-1" /> Publish to IPFS
+            </Button>
+          )}
+          {ipfsState.status === "uploading" && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Publishing...
+            </Button>
+          )}
+          {ipfsState.status === "success" && (
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-green-600 border-green-500/30 bg-green-500/10 gap-1">
+                <CheckCircle className="h-3 w-3" />
+                Published
+              </Badge>
+              <button
+                onClick={handleCopyCid}
+                className="inline-flex items-center gap-1 text-xs font-mono bg-muted px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                title="Copy CID"
+              >
+                {cidCopied ? (
+                  <Check className="h-3 w-3 text-green-500" />
+                ) : (
+                  <Copy className="h-3 w-3 text-muted-foreground" />
+                )}
+                {ipfsState.cid.slice(0, 12)}...
+              </button>
+              <a
+                href={ipfsState.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="View on IPFS"
+              >
+                <Link className="h-3.5 w-3.5 text-primary" />
+              </a>
+            </div>
+          )}
+          {ipfsState.status === "error" && (
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-500/10 gap-1">
+                <XCircle className="h-3 w-3" />
+                Failed
+              </Badge>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePublishToIPFS}
+                className="text-xs h-7"
+              >
+                Retry
+              </Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent>
