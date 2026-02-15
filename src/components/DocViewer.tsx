@@ -36,6 +36,7 @@ import {
   CheckCircle,
   XCircle,
   Link,
+  Network,
 } from "lucide-react";
 import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDocumentation, AbiItem, NetworkType } from "@/types";
 import { exportToMarkdown } from "@/lib/exporters/markdown";
@@ -46,6 +47,7 @@ import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 const ContractPlayground = dynamic(() => import("@/components/ContractPlayground"), { ssr: false });
+const DependencyGraphViewer = dynamic(() => import("@/components/DependencyGraph"), { ssr: false });
 
 interface DocViewerProps {
   documentation: Documentation;
@@ -282,6 +284,9 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
                 <Play className="h-4 w-4 mr-1" /> Playground
               </TabsTrigger>
             )}
+            <TabsTrigger value="dependencies">
+              <Network className="h-4 w-4 mr-1" /> Dependencies
+            </TabsTrigger>
           </TabsList>
 
           {/* -- Overview Tab -- */}
@@ -524,6 +529,15 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
               />
             </TabsContent>
           )}
+
+          {/* -- Dependencies Tab -- */}
+          <TabsContent value="dependencies" className="mt-4">
+            <DependencyGraphViewer
+              contractAddress={documentation.contractAddress}
+              network={documentation.network as NetworkType}
+              sourceCode={sourceCode}
+            />
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
