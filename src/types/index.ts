@@ -315,6 +315,10 @@ export interface ContractDiff {
   contractB: ContractVersion;
   changes: DiffChange[];
   summary: DiffSummary;
+  /** AI-generated semantic analysis */
+  aiAnalysis?: DiffAIAnalysis;
+  /** Detailed statistics about the diff */
+  stats: DiffStats;
 }
 
 export interface ContractVersion {
@@ -331,6 +335,8 @@ export interface DiffChange {
   before?: string;
   after?: string;
   description: string;
+  impact: "breaking" | "non-breaking";
+  explanation?: string;
 }
 
 export interface DiffSummary {
@@ -340,6 +346,49 @@ export interface DiffSummary {
   modified: number;
   breakingChanges: number;
   aiAnalysis: string;
+}
+
+/** Security impact assessment for a specific change */
+export interface SecurityImpact {
+  change: string;
+  impact: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  recommendation: string;
+}
+
+/** Detailed breaking change info */
+export interface BreakingChangeDetail {
+  name: string;
+  category: DiffChange["category"];
+  reason: string;
+  before?: string;
+  after?: string;
+}
+
+/** AI-generated semantic diff analysis */
+export interface DiffAIAnalysis {
+  summary: string;
+  breakingChanges: BreakingChangeDetail[];
+  securityImpacts: SecurityImpact[];
+  migrationGuide: string;
+  riskLevel: "critical" | "high" | "medium" | "low" | "none";
+}
+
+/** Quantitative diff statistics */
+export interface DiffStats {
+  linesAdded: number;
+  linesRemoved: number;
+  linesModified: number;
+  functionsAdded: number;
+  functionsRemoved: number;
+  functionsModified: number;
+  eventsAdded: number;
+  eventsRemoved: number;
+  variablesAdded: number;
+  variablesRemoved: number;
+  variablesModified: number;
+  modifiersAdded: number;
+  modifiersRemoved: number;
 }
 
 // --- Dependency Graph Types ---
