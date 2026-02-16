@@ -10,6 +10,40 @@ import { FileText, Loader2, Shield, Zap, CheckCircle2, AlertCircle } from "lucid
 import { NetworkType, Documentation, GeneratedDocumentation, AbiItem } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
 import { toast } from "sonner";
+import { ethers } from "ethers";
+import { CONTRACT_ADDRESSES, NETWORKS } from "@/config/chains";
+
+const REGISTRY_ABI = [
+  "function hasDocumentation(address contractAddr) external view returns (bool)",
+  "function getLatestDocumentation(address contractAddr) external view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, bytes32 contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
+];
+
+/** Check all deployed registries for existing docs for this contract address */
+async function findExistingDocs(contractAddr: string): Promise<{ ipfsHash: string; contractName: string } | null> {
+  const checks = Object.entries(CONTRACT_ADDRESSES)
+    .filter(([, addr]) => addr)
+    .map(async ([net, registryAddr]) => {
+      try {
+        const config = NETWORKS[net as NetworkType];
+        const provider = new ethers.JsonRpcProvider(
+          config.rpcUrl,
+          { name: config.name, chainId: config.chainId },
+          { staticNetwork: true }
+        );
+        const registry = new ethers.Contract(registryAddr, REGISTRY_ABI, provider);
+        const exists = await registry.hasDocumentation(contractAddr);
+        if (!exists) return null;
+        const doc = await registry.getLatestDocumentation(contractAddr);
+        if (!doc.ipfsHash) return null;
+        return { ipfsHash: doc.ipfsHash as string, contractName: doc.contractName as string };
+      } catch {
+        return null;
+      }
+    });
+
+  const results = await Promise.all(checks);
+  return results.find((r) => r !== null) || null;
+}
 
 /** Result passed to the parent page */
 export interface GenerationResult {
@@ -18,6 +52,7 @@ export interface GenerationResult {
   sourceCode?: string;
   contractName: string;
   abi?: AbiItem[];
+  alreadyPublished?: boolean;
 }
 
 interface DocGeneratorProps {
@@ -33,6 +68,7 @@ interface ProgressState {
 }
 
 const STAGE_LABELS: Record<string, string> = {
+  checking: "Checking Registry",
   fetching: "Fetching Contract",
   parsing: "Parsing Source",
   analyzing: "Analyzing Structure",
@@ -56,6 +92,7 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [foundExisting, setFoundExisting] = useState(false);
 
   const addressTouched = address.length > 0;
   const addressValid = isValidAddress(address);
@@ -67,7 +104,7 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
     setError(null);
   };
 
-  const handleGenerate = useCallback(async () => {
+  const handleGenerate = useCallback(async (skipCache = false) => {
     if (!address) {
       setError("Please enter a contract address");
       return;
@@ -80,9 +117,42 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
 
     setLoading(true);
     setError(null);
-    setProgress({ stage: "fetching", percent: 5, message: "Fetching contract source code..." });
+    setProgress({ stage: "checking", percent: 3, message: "Checking for existing documentation..." });
 
     try {
+      // Step 0: Check if docs already exist on-chain
+      if (!skipCache) {
+        const existing = await findExistingDocs(address);
+        if (existing) {
+          setProgress({ stage: "fetching", percent: 30, message: "Found existing docs! Loading from IPFS..." });
+          const ipfsRes = await fetch(`https://gateway.pinata.cloud/ipfs/${existing.ipfsHash}`);
+          if (ipfsRes.ok) {
+            const bundle = await ipfsRes.json();
+            if (bundle.documentation) {
+              let abi: AbiItem[] | undefined;
+              if (bundle.abi) {
+                try { abi = typeof bundle.abi === "string" ? JSON.parse(bundle.abi) : bundle.abi; } catch { /* ignore */ }
+              }
+              setProgress({ stage: "complete", percent: 100, message: "Loaded existing documentation!" });
+              setFoundExisting(true);
+              toast.success("Documentation loaded from IPFS!", {
+                description: `${existing.contractName} — previously generated docs found on-chain`,
+              });
+              onDocGenerated({
+                documentation: bundle.documentation,
+                generatedDocumentation: bundle.generatedDocumentation,
+                sourceCode: bundle.sourceCode,
+                contractName: existing.contractName,
+                abi,
+                alreadyPublished: true,
+              });
+              return;
+            }
+          }
+        }
+      }
+      setProgress({ stage: "fetching", percent: 5, message: "Fetching contract source code..." });
+
       // Step 1: Fetch contract source
       const fetchRes = await fetch("/api/fetch-contract", {
         method: "POST",
@@ -307,8 +377,8 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
             <p className="text-xs text-muted-foreground">{progress.message}</p>
 
             <div className="flex flex-wrap items-center gap-1 text-xs">
-              {["fetching", "parsing", "analyzing", "generating", "validating"].map((stage, i) => {
-                const stageOrder = ["fetching", "parsing", "analyzing", "generating", "validating", "complete"];
+              {["checking", "fetching", "parsing", "analyzing", "generating", "validating"].map((stage, i) => {
+                const stageOrder = ["checking", "fetching", "parsing", "analyzing", "generating", "validating", "complete"];
                 const currentIdx = stageOrder.indexOf(progress.stage);
                 const stageIdx = stageOrder.indexOf(stage);
                 const isComplete = stageIdx < currentIdx;
@@ -340,25 +410,39 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
           </div>
         )}
 
-        <Button
-          onClick={handleGenerate}
-          disabled={loading || !address || (addressTouched && !addressValid)}
-          className="w-full"
-          size="lg"
-          aria-label="Generate documentation"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <FileText className="mr-2 h-4 w-4" />
-              Generate Documentation
-            </>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => handleGenerate()}
+            disabled={loading || !address || (addressTouched && !addressValid)}
+            className="flex-1"
+            size="lg"
+            aria-label="Generate documentation"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <FileText className="mr-2 h-4 w-4" />
+                Generate Documentation
+              </>
+            )}
+          </Button>
+          {foundExisting && !loading && (
+            <Button
+              onClick={() => { setFoundExisting(false); handleGenerate(true); }}
+              disabled={loading || !address}
+              variant="outline"
+              size="lg"
+              aria-label="Regenerate documentation with AI"
+            >
+              <Zap className="mr-2 h-4 w-4" />
+              Regenerate
+            </Button>
           )}
-        </Button>
+        </div>
       </CardContent>
     </Card>
   );

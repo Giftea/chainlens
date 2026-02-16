@@ -118,7 +118,7 @@ function GeneratePageContent() {
           generatedDocumentation={result.generatedDocumentation}
           sourceCode={result.sourceCode}
           abi={result.abi}
-          alreadyPublished={!!ipfsHash && !ipfsError}
+          alreadyPublished={(!!ipfsHash && !ipfsError) || !!result.alreadyPublished}
         />
       )}
     </div>
