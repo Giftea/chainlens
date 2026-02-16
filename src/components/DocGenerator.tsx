@@ -22,6 +22,8 @@ export interface GenerationResult {
 
 interface DocGeneratorProps {
   onDocGenerated: (result: GenerationResult) => void;
+  initialAddress?: string;
+  initialNetwork?: string;
 }
 
 interface ProgressState {
@@ -46,9 +48,11 @@ const EXAMPLE_CONTRACTS: { label: string; address: string; network: NetworkType 
   { label: "PancakeSwap Factory", address: "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73", network: "bsc-mainnet" },
 ];
 
-export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
-  const [address, setAddress] = useState("");
-  const [network, setNetwork] = useState<NetworkType>("bsc-mainnet");
+export default function DocGenerator({ onDocGenerated, initialAddress, initialNetwork }: DocGeneratorProps) {
+  const [address, setAddress] = useState(initialAddress || "");
+  const [network, setNetwork] = useState<NetworkType>(
+    (initialNetwork as NetworkType) || "bsc-mainnet"
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);

@@ -56,9 +56,10 @@ interface DocViewerProps {
   generatedDocumentation?: GeneratedDocumentation;
   sourceCode?: string;
   abi?: AbiItem[];
+  alreadyPublished?: boolean;
 }
 
-export default function DocViewer({ documentation, generatedDocumentation, sourceCode, abi }: DocViewerProps) {
+export default function DocViewer({ documentation, generatedDocumentation, sourceCode, abi, alreadyPublished }: DocViewerProps) {
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [playgroundFunctionName, setPlaygroundFunctionName] = useState<string | null>(null);
@@ -189,57 +190,67 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
           <Button variant="outline" size="sm" onClick={() => handleExport("html")} disabled={exporting}>
             <Globe className="h-4 w-4 mr-1" /> HTML
           </Button>
-          <div className="w-px bg-border mx-1 hidden sm:block" />
-          {publishProgress.step === "idle" && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handlePublish}
-              className="bg-primary"
-            >
-              <Upload className="h-4 w-4 mr-1" /> Publish On-Chain
-            </Button>
+          {!alreadyPublished && (
+            <>
+              <div className="w-px bg-border mx-1 hidden sm:block" />
+              {publishProgress.step === "idle" && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handlePublish}
+                  className="bg-primary"
+                >
+                  <Upload className="h-4 w-4 mr-1" /> Publish On-Chain
+                </Button>
+              )}
+              {isPublishing && (
+                <Button variant="outline" size="sm" disabled>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Publishing...
+                </Button>
+              )}
+              {publishProgress.step === "success" && (
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-green-600 border-green-500/30 bg-green-500/10 gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    Published
+                  </Badge>
+                  <button
+                    onClick={() => setShowPublishPanel(!showPublishPanel)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Details
+                  </button>
+                </div>
+              )}
+              {publishProgress.step === "error" && (
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-500/10 gap-1">
+                    <XCircle className="h-3 w-3" />
+                    Failed
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePublish}
+                    className="text-xs h-7"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+            </>
           )}
-          {isPublishing && (
-            <Button variant="outline" size="sm" disabled>
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Publishing...
-            </Button>
-          )}
-          {publishProgress.step === "success" && (
-            <div className="flex items-center gap-1.5">
-              <Badge variant="outline" className="text-green-600 border-green-500/30 bg-green-500/10 gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Published
-              </Badge>
-              <button
-                onClick={() => setShowPublishPanel(!showPublishPanel)}
-                className="text-xs text-primary hover:underline"
-              >
-                Details
-              </button>
-            </div>
-          )}
-          {publishProgress.step === "error" && (
-            <div className="flex items-center gap-1.5">
-              <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-500/10 gap-1">
-                <XCircle className="h-3 w-3" />
-                Failed
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handlePublish}
-                className="text-xs h-7"
-              >
-                Retry
-              </Button>
-            </div>
+          {alreadyPublished && (
+            <Badge variant="outline" className="text-green-600 border-green-500/30 bg-green-500/10 gap-1">
+              <CheckCircle className="h-3 w-3" />
+              Published
+            </Badge>
           )}
         </div>
       </CardHeader>
 
       {/* Publish Progress Panel */}
-      {showPublishPanel && (
+      {showPublishPanel && !alreadyPublished && (
         <div className="mx-6 mb-4">
           <PublishProgressPanel
             progress={publishProgress}

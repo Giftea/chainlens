@@ -200,7 +200,11 @@ function BrowseDocumentation() {
 
   const handleViewDoc = (doc: PublishedDoc) => {
     const network = getNetworkByChainId(doc.chainId);
-    if (network) {
+    if (network && doc.ipfsHash) {
+      router.push(
+        `/generate?ipfs=${doc.ipfsHash}&address=${doc.contractAddress}&network=${network}`
+      );
+    } else if (network) {
       router.push(
         `/generate?address=${doc.contractAddress}&network=${network}`
       );
