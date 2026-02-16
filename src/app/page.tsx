@@ -105,9 +105,13 @@ export default function HomePage() {
       // Fetch recent docs
       if (Number(totalDocumented) > 0) {
         const [docs] = await registry.getAllDocumentations(0, 5);
-        const mapped: OnchainDocumentation[] = docs.map(
+        const HIDDEN_ADDRESSES = new Set([
+          "0xae13d989dac2f0debff460ac112a837c89baa7cd",
+        ]);
+
+        const mapped: OnchainDocumentation[] = docs
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (d: any) => ({
+          .map((d: any) => ({
             contractAddress: d.contractAddress,
             contractName: d.contractName,
             ipfsHash: d.ipfsHash,
@@ -120,8 +124,8 @@ export default function HomePage() {
             stateVarCount: Number(d.stateVarCount),
             hasPlayground: d.hasPlayground,
             hasDiff: d.hasDiff,
-          }),
-        );
+          }))
+          .filter((d: OnchainDocumentation) => !HIDDEN_ADDRESSES.has(d.contractAddress.toLowerCase()));
         setRecentDocs(mapped);
       }
     } catch {

@@ -7,6 +7,11 @@ import {
 } from "@/config/chains";
 import { NetworkType } from "@/types";
 
+// Contract addresses to hide from the explore page (test/invalid entries)
+const HIDDEN_ADDRESSES = new Set([
+  "0xae13d989dac2f0debff460ac112a837c89baa7cd", // Test WBNB with fake IPFS hash
+]);
+
 // ABI matching the deployed DocRegistry contract
 const DOC_REGISTRY_ABI = [
   "function totalDocumented() view returns (uint256)",
@@ -66,6 +71,9 @@ async function fetchDocsFromNetwork(
     for (let i = 0; i < rawDocs.length; i++) {
       const d = rawDocs[i];
       if (!d.ipfsHash || d.ipfsHash === "") continue;
+
+      // Skip known test/invalid entries
+      if (HIDDEN_ADDRESSES.has(d.contractAddress.toLowerCase())) continue;
 
       docs.push({
         id: i,
