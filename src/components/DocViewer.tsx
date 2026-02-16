@@ -44,6 +44,7 @@ import { exportToPDF } from "@/lib/exporters/pdf";
 import { exportToHTML } from "@/lib/exporters/html";
 // getNetworkConfig used internally by onchainPublisher
 import { publishDocumentation, generateShareUrl, type PublishProgress, type PublishStep } from "@/lib/onchainPublisher";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -87,6 +88,11 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
           break;
         }
       }
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
     } finally {
       setExporting(false);
     }
@@ -114,6 +120,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
       await navigator.clipboard.writeText(publishProgress.ipfsCid);
       setCidCopied(true);
       setTimeout(() => setCidCopied(false), 2000);
+      toast.success("IPFS CID copied to clipboard");
     }
   };
 
@@ -125,6 +132,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
         publishProgress.ipfsCid
       );
       await navigator.clipboard.writeText(url);
+      toast.success("Share link copied to clipboard");
     }
   };
 

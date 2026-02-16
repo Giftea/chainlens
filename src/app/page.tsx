@@ -82,7 +82,10 @@ export default function HomePage() {
       }
 
       const config = getNetworkConfig("bsc-testnet");
-      const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+      const provider = new ethers.JsonRpcProvider(config.rpcUrl, {
+        name: "bnbt",
+        chainId: config.chainId,
+      }, { staticNetwork: true });
       const registry = new ethers.Contract(
         contractAddress,
         REGISTRY_ABI,

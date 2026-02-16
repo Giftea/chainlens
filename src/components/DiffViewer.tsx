@@ -48,6 +48,8 @@ import {
 import { CodeDiff, DiffLine } from "@/components/diff/CodeDiff";
 import { computeTextDiff } from "@/lib/diffEngine";
 import { getExplorerUrl } from "@/config/chains";
+import { isValidAddress } from "@/lib/web3Client";
+import { toast } from "sonner";
 
 // ============================================================
 //                    MAIN COMPONENT
@@ -66,6 +68,21 @@ export default function DiffViewer() {
   const handleCompare = useCallback(async () => {
     if (!addressA || !addressB) {
       setError("Please enter both contract addresses");
+      return;
+    }
+
+    if (!isValidAddress(addressA)) {
+      setError("Contract A has an invalid address format");
+      return;
+    }
+
+    if (!isValidAddress(addressB)) {
+      setError("Contract B has an invalid address format");
+      return;
+    }
+
+    if (addressA.toLowerCase() === addressB.toLowerCase()) {
+      setError("Both addresses are the same. Enter two different contracts to compare.");
       return;
     }
 
@@ -95,8 +112,13 @@ export default function DiffViewer() {
       setLoadingStage("Rendering results...");
       const data = await res.json();
       setDiff(data.diff);
+      toast.success("Diff analysis complete", {
+        description: `${data.diff.changes?.length || 0} changes detected`,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const message = err instanceof Error ? err.message : "An error occurred";
+      setError(message);
+      toast.error("Comparison failed", { description: message });
     } finally {
       setLoading(false);
       setLoadingStage("");
@@ -129,28 +151,38 @@ export default function DiffViewer() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">
+              <label htmlFor="address-a" className="text-sm font-medium mb-1 block">
                 Old Version (Contract A)
               </label>
               <Input
+                id="address-a"
                 placeholder="0x... Original contract address"
                 value={addressA}
-                onChange={(e) => setAddressA(e.target.value)}
+                onChange={(e) => { setAddressA(e.target.value.trim()); setError(null); }}
                 disabled={loading}
-                className="font-mono text-sm"
+                className={`font-mono text-sm ${addressA.length > 2 && !isValidAddress(addressA) ? "border-destructive" : ""}`}
+                aria-label="Old contract address"
               />
+              {addressA.length > 2 && !isValidAddress(addressA) && (
+                <p className="text-xs text-destructive mt-1">Invalid address format</p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">
+              <label htmlFor="address-b" className="text-sm font-medium mb-1 block">
                 New Version (Contract B)
               </label>
               <Input
+                id="address-b"
                 placeholder="0x... Updated contract address"
                 value={addressB}
-                onChange={(e) => setAddressB(e.target.value)}
+                onChange={(e) => { setAddressB(e.target.value.trim()); setError(null); }}
                 disabled={loading}
-                className="font-mono text-sm"
+                className={`font-mono text-sm ${addressB.length > 2 && !isValidAddress(addressB) ? "border-destructive" : ""}`}
+                aria-label="New contract address"
               />
+              {addressB.length > 2 && !isValidAddress(addressB) && (
+                <p className="text-xs text-destructive mt-1">Invalid address format</p>
+              )}
             </div>
           </div>
 
@@ -221,7 +253,7 @@ export default function DiffViewer() {
 
           {/* Error */}
           {error && (
-            <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+            <div role="alert" className="flex items-start gap-2 text-sm text-destructive bg-red-300 p-3 rounded-md">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
               <p>{error}</p>
             </div>
@@ -622,6 +654,7 @@ function MigrationTab({ aiAnalysis }: { aiAnalysis: DiffAIAnalysis }) {
   const copyGuide = useCallback(async () => {
     await navigator.clipboard.writeText(aiAnalysis.migrationGuide);
     setCopied(true);
+    toast.success("Migration guide copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   }, [aiAnalysis.migrationGuide]);
 

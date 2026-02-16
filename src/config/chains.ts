@@ -16,7 +16,7 @@ export const NETWORKS: Record<NetworkType, NetworkConfig> = {
   "bsc-testnet": {
     name: "BNB Testnet",
     chainId: 97,
-    rpcUrl: "https://data-seed-prebsc-1-s1.bnbchain.org:8545/",
+    rpcUrl: "https://bsc-testnet-rpc.publicnode.com",
     explorerUrl: "https://testnet.bscscan.com",
     explorerApiUrl: "https://api-testnet.bscscan.com/api",
     nativeCurrency: {

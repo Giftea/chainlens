@@ -19,14 +19,18 @@ import {
   getBrowserProvider,
   getContractWithBrowserSigner,
 } from "@/lib/web3Client";
+import { generateContentHash } from "@/lib/ipfsUploader";
 
 // ---- DocRegistry ABI (only the functions we need) ----
 
 const DOC_REGISTRY_ABI = [
-  "function publishDocumentation(address contractAddress, string contractName, string ipfsHash, uint256 chainId, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff) public returns (uint256)",
-  "function getDocumentation(address contractAddress) public view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, string contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
+  "function publishDocumentation(address contractAddr, string contractName, string ipfsHash, uint256 chainId, bytes32 contentHash, uint256 functionCount, uint256 stateVarCount) external payable",
+  "function updateMetadata(address contractAddr, bool hasPlayground, bool hasDiff) external",
+  "function getLatestDocumentation(address contractAddr) external view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, bytes32 contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
+  "function hasDocumentation(address contractAddr) external view returns (bool)",
   "function getDocumentationCount() public view returns (uint256)",
-  "event DocumentationPublished(address indexed contractAddr, uint256 indexed documentationId, string ipfsHash)",
+  "event DocumentationPublished(address indexed contractAddr, uint256 version, string ipfsHash, address indexed generator, uint256 chainId)",
+  "event DocumentationUpdated(address indexed contractAddr, uint256 version, string ipfsHash, address indexed updater)",
 ];
 
 // ---- Types ----
@@ -303,6 +307,11 @@ export async function publishDocumentation(
   const functionCount = documentation.functions.length;
   const stateVarCount = documentation.stateVariables.length;
 
+  // Generate content hash (bytes32) for on-chain integrity verification
+  const contentHashHex = await generateContentHash(
+    JSON.stringify({ documentation, generatedDocumentation, sourceCode, abi })
+  );
+
   // Estimate gas
   let gasEstimate: string | undefined;
   try {
@@ -311,10 +320,9 @@ export async function publishDocumentation(
       documentation.contractName,
       ipfsCid,
       networkConfig.chainId,
+      contentHashHex,
       functionCount,
       stateVarCount,
-      hasPlayground,
-      hasDiff,
     );
     gasEstimate = estimate.toString();
   } catch {
@@ -337,10 +345,9 @@ export async function publishDocumentation(
       documentation.contractName,
       ipfsCid,
       networkConfig.chainId,
+      contentHashHex,
       functionCount,
       stateVarCount,
-      hasPlayground,
-      hasDiff,
     );
   } catch (error) {
     const errorProgress: PublishProgress = {
@@ -374,7 +381,7 @@ export async function publishDocumentation(
       throw new Error("Transaction failed on-chain.");
     }
 
-    // Extract documentation ID from event logs
+    // Extract version from event logs
     let documentationId: string | undefined;
     try {
       const iface = new ethers.Interface(DOC_REGISTRY_ABI);
@@ -384,7 +391,11 @@ export async function publishDocumentation(
             topics: log.topics as string[],
             data: log.data,
           });
-          if (parsed && parsed.name === "DocumentationPublished") {
+          if (
+            parsed &&
+            (parsed.name === "DocumentationPublished" ||
+              parsed.name === "DocumentationUpdated")
+          ) {
             documentationId = parsed.args[1].toString();
             break;
           }
@@ -394,6 +405,20 @@ export async function publishDocumentation(
       }
     } catch {
       // Event parsing failed, non-critical
+    }
+
+    // Update playground/diff metadata flags if needed
+    if (hasPlayground || hasDiff) {
+      try {
+        const metaTx = await contract.updateMetadata(
+          contractAddress,
+          hasPlayground,
+          hasDiff,
+        );
+        await metaTx.wait(1);
+      } catch {
+        // Non-critical: metadata update failed but docs are published
+      }
     }
 
     const successProgress: PublishProgress = {
@@ -435,19 +460,22 @@ export async function getOnchainDocumentation(
   const config = getNetworkConfig(network);
 
   try {
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+    const provider = new ethers.JsonRpcProvider(
+      config.rpcUrl,
+      { name: config.name, chainId: config.chainId },
+      { staticNetwork: true }
+    );
     const contract = new ethers.Contract(
       registryAddress,
       DOC_REGISTRY_ABI,
       provider,
     );
-    const doc = await contract.getDocumentation(contractAddress);
-
-    // If ipfsHash is empty, no documentation exists
-    if (!doc.ipfsHash || doc.ipfsHash === "") {
+    const exists = await contract.hasDocumentation(contractAddress);
+    if (!exists) {
       return { exists: false };
     }
 
+    const doc = await contract.getLatestDocumentation(contractAddress);
     return {
       exists: true,
       ipfsHash: doc.ipfsHash,

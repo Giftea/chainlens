@@ -8,7 +8,11 @@ const providers: Record<string, ethers.JsonRpcProvider> = {};
 export function getProvider(network: NetworkType): ethers.JsonRpcProvider {
   if (!providers[network]) {
     const config = getNetworkConfig(network);
-    providers[network] = new ethers.JsonRpcProvider(config.rpcUrl);
+    providers[network] = new ethers.JsonRpcProvider(
+      config.rpcUrl,
+      { name: config.name, chainId: config.chainId },
+      { staticNetwork: true }
+    );
   }
   return providers[network];
 }

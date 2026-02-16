@@ -43,6 +43,7 @@ import { AbiItem, ContractInfo, NetworkType } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
 import { SUPPORTED_NETWORKS, getNetworkByChainId } from "@/config/chains";
 import type { PublishedDoc } from "@/app/api/get-all-docs/route";
+import { toast } from "sonner";
 
 // ---- Constants ----
 
@@ -236,6 +237,7 @@ function BrowseDocumentation() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
+            aria-label="Search contracts"
           />
         </div>
 
@@ -268,7 +270,7 @@ function BrowseDocumentation() {
 
       {/* Error state */}
       {error && (
-        <div className="text-center py-12 space-y-3">
+        <div role="alert" className="text-center py-12 space-y-3">
           <p className="text-muted-foreground">{error}</p>
           <Button variant="outline" size="sm" onClick={loadDocs}>
             Retry
@@ -369,6 +371,7 @@ function DocCard({ doc, onView }: { doc: PublishedDoc; onView: () => void }) {
     e.stopPropagation();
     await navigator.clipboard.writeText(doc.contractAddress);
     setCopied(true);
+    toast.success("Address copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -570,7 +573,7 @@ function ContractLookup() {
           </div>
 
           {error && (
-            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+            <div className="text-sm text-destructive bg-red-300 p-3 rounded-md">
               {error}
             </div>
           )}

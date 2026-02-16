@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { FileText, Loader2, Shield, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 import { NetworkType, Documentation, GeneratedDocumentation, AbiItem } from "@/types";
 import { isValidAddress } from "@/lib/web3Client";
+import { toast } from "sonner";
 
 /** Result passed to the parent page */
 export interface GenerationResult {
@@ -52,6 +53,9 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressState | null>(null);
 
+  const addressTouched = address.length > 0;
+  const addressValid = isValidAddress(address);
+
   const handleSelectExample = (idx: number) => {
     const ex = EXAMPLE_CONTRACTS[idx];
     setAddress(ex.address);
@@ -66,7 +70,7 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
     }
 
     if (!isValidAddress(address)) {
-      setError("Invalid contract address format");
+      setError("Invalid contract address. Must be a 42-character hex address starting with 0x.");
       return;
     }
 
@@ -174,6 +178,9 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
       }
 
       setProgress({ stage: "complete", percent: 100, message: "Documentation generated successfully!" });
+      toast.success("Documentation generated successfully!", {
+        description: `${documentation.contractName} — ${documentation.functions.length} functions documented`,
+      });
       onDocGenerated({
         documentation,
         generatedDocumentation,
@@ -182,7 +189,9 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
         abi: contract.abi,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(message);
+      toast.error("Generation failed", { description: message });
     } finally {
       setLoading(false);
       setProgress(null);
@@ -201,24 +210,38 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1">
             <Input
               placeholder="0x... Contract Address"
               value={address}
               onChange={(e) => {
-                setAddress(e.target.value);
+                setAddress(e.target.value.trim());
                 setError(null);
               }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !loading && address) handleGenerate();
+              }}
               disabled={loading}
+              aria-label="Contract address"
+              className={
+                addressTouched && !addressValid && address.length > 2
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : ""
+              }
             />
+            {addressTouched && !addressValid && address.length > 2 && (
+              <p className="text-xs text-destructive mt-1">
+                Invalid address format. Must be 0x followed by 40 hex characters.
+              </p>
+            )}
           </div>
           <Select
             value={network}
             onValueChange={(v) => setNetwork(v as NetworkType)}
             disabled={loading}
           >
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]" aria-label="Select network">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -237,7 +260,8 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
               key={i}
               onClick={() => handleSelectExample(i)}
               disabled={loading}
-              className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors disabled:opacity-50"
+              aria-label={`Use ${ex.label} contract address`}
+              className="text-xs px-2 py-1 rounded-md border hover:bg-muted transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {ex.label}
             </button>
@@ -256,14 +280,14 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
         </div>
 
         {error && (
-          <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+          <div role="alert" className="flex items-start gap-2 text-sm text-destructive bg-red-300 p-3 rounded-md">
             <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
             {error}
           </div>
         )}
 
         {loading && progress && (
-          <div className="space-y-3">
+          <div className="space-y-3" role="progressbar" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}>
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
@@ -278,7 +302,7 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
             </div>
             <p className="text-xs text-muted-foreground">{progress.message}</p>
 
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex flex-wrap items-center gap-1 text-xs">
               {["fetching", "parsing", "analyzing", "generating", "validating"].map((stage, i) => {
                 const stageOrder = ["fetching", "parsing", "analyzing", "generating", "validating", "complete"];
                 const currentIdx = stageOrder.indexOf(progress.stage);
@@ -314,9 +338,10 @@ export default function DocGenerator({ onDocGenerated }: DocGeneratorProps) {
 
         <Button
           onClick={handleGenerate}
-          disabled={loading || !address}
+          disabled={loading || !address || (addressTouched && !addressValid)}
           className="w-full"
           size="lg"
+          aria-label="Generate documentation"
         >
           {loading ? (
             <>

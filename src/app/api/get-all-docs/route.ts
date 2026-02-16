@@ -7,12 +7,12 @@ import {
 } from "@/config/chains";
 import { NetworkType } from "@/types";
 
-// Extended ABI for reading all documentations
+// ABI matching the deployed DocRegistry contract
 const DOC_REGISTRY_ABI = [
-  "function getDocumentationCount() public view returns (uint256)",
-  "function getDocumentationById(uint256 id) public view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, string contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
-  "function getDocumentation(address contractAddress) public view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, string contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
-  "event DocumentationPublished(address indexed contractAddr, uint256 indexed documentationId, string ipfsHash)",
+  "function totalDocumented() view returns (uint256)",
+  "function getAllDocumentations(uint256 offset, uint256 limit) view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, bytes32 contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff)[] docs, uint256 total)",
+  "function getLatestDocumentation(address contractAddr) view returns (tuple(address contractAddress, string contractName, string ipfsHash, address generator, uint256 timestamp, uint256 version, uint256 chainId, bytes32 contentHash, uint256 functionCount, uint256 stateVarCount, bool hasPlayground, bool hasDiff))",
+  "event DocumentationPublished(address indexed contractAddr, uint256 version, string ipfsHash, address indexed generator, uint256 chainId)",
 ];
 
 export interface PublishedDoc {
@@ -33,7 +33,7 @@ export interface PublishedDoc {
   network: string;
 }
 
-// Fetch docs from a single network
+// Fetch docs from a single network using getAllDocumentations
 async function fetchDocsFromNetwork(
   network: NetworkType,
   limit: number
@@ -42,7 +42,11 @@ async function fetchDocsFromNetwork(
   if (!registryAddress) return [];
 
   const config = NETWORKS[network];
-  const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+  const provider = new ethers.JsonRpcProvider(
+    config.rpcUrl,
+    { name: config.name, chainId: config.chainId },
+    { staticNetwork: true }
+  );
   const contract = new ethers.Contract(
     registryAddress,
     DOC_REGISTRY_ABI,
@@ -50,142 +54,43 @@ async function fetchDocsFromNetwork(
   );
 
   try {
-    const countBN = await contract.getDocumentationCount();
-    const count = Number(countBN);
-    if (count === 0) return [];
+    const totalBN = await contract.totalDocumented();
+    const total = Number(totalBN);
+    if (total === 0) return [];
 
-    const startIdx = Math.max(0, count - limit);
+    // Fetch all docs (or up to limit) using the contract's pagination
+    const fetchCount = Math.min(total, limit);
+    const [rawDocs] = await contract.getAllDocumentations(0, fetchCount);
+
     const docs: PublishedDoc[] = [];
+    for (let i = 0; i < rawDocs.length; i++) {
+      const d = rawDocs[i];
+      if (!d.ipfsHash || d.ipfsHash === "") continue;
 
-    // Fetch in reverse (newest first), with concurrency limit
-    const batchSize = 5;
-    for (let i = count - 1; i >= startIdx; i -= batchSize) {
-      const batch: Promise<PublishedDoc | null>[] = [];
-
-      for (let j = i; j > i - batchSize && j >= startIdx; j--) {
-        batch.push(
-          fetchSingleDoc(contract, j, network, config.name).catch(() => null)
-        );
-      }
-
-      const results = await Promise.all(batch);
-      for (const doc of results) {
-        if (doc) docs.push(doc);
-      }
+      docs.push({
+        id: i,
+        contractAddress: d.contractAddress,
+        contractName: d.contractName || "Unknown",
+        ipfsHash: d.ipfsHash,
+        ipfsUrl: `https://gateway.pinata.cloud/ipfs/${d.ipfsHash}`,
+        generator: d.generator,
+        timestamp: Number(d.timestamp),
+        version: Number(d.version),
+        chainId: Number(d.chainId),
+        contentHash: d.contentHash || "",
+        functionCount: Number(d.functionCount),
+        stateVarCount: Number(d.stateVarCount),
+        hasPlayground: d.hasPlayground,
+        hasDiff: d.hasDiff,
+        network: config.name,
+      });
     }
 
+    // Sort newest first
+    docs.sort((a, b) => b.timestamp - a.timestamp);
     return docs;
   } catch (error) {
     console.error(`Failed to fetch docs from ${network}:`, error);
-
-    // Fallback: try reading events if getDocumentationById doesn't exist
-    return fetchDocsFromEvents(contract, provider, network, config.name, limit);
-  }
-}
-
-async function fetchSingleDoc(
-  contract: ethers.Contract,
-  id: number,
-  network: NetworkType,
-  networkName: string
-): Promise<PublishedDoc | null> {
-  try {
-    const doc = await contract.getDocumentationById(id);
-
-    // Skip empty entries
-    if (!doc.ipfsHash || doc.ipfsHash === "") return null;
-
-    return {
-      id,
-      contractAddress: doc.contractAddress,
-      contractName: doc.contractName || "Unknown",
-      ipfsHash: doc.ipfsHash,
-      ipfsUrl: `https://gateway.pinata.cloud/ipfs/${doc.ipfsHash}`,
-      generator: doc.generator,
-      timestamp: Number(doc.timestamp),
-      version: Number(doc.version),
-      chainId: Number(doc.chainId),
-      contentHash: doc.contentHash || "",
-      functionCount: Number(doc.functionCount),
-      stateVarCount: Number(doc.stateVarCount),
-      hasPlayground: doc.hasPlayground,
-      hasDiff: doc.hasDiff,
-      network: networkName,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// Fallback: parse events if getDocumentationById doesn't exist
-async function fetchDocsFromEvents(
-  contract: ethers.Contract,
-  provider: ethers.JsonRpcProvider,
-  network: NetworkType,
-  networkName: string,
-  limit: number
-): Promise<PublishedDoc[]> {
-  try {
-    const currentBlock = await provider.getBlockNumber();
-    // Search last 50000 blocks (~2 days on BSC)
-    const fromBlock = Math.max(0, currentBlock - 50000);
-
-    const filter = contract.filters.DocumentationPublished();
-    const events = await contract.queryFilter(filter, fromBlock, currentBlock);
-
-    const docs: PublishedDoc[] = [];
-    const latestEvents = events.slice(-limit).reverse();
-
-    for (const event of latestEvents) {
-      if (!("args" in event)) continue;
-      const logEvent = event as ethers.EventLog;
-
-      // Try fetching full doc by address
-      try {
-        const doc = await contract.getDocumentation(logEvent.args[0]);
-        if (doc.ipfsHash && doc.ipfsHash !== "") {
-          docs.push({
-            id: Number(logEvent.args[1]),
-            contractAddress: doc.contractAddress,
-            contractName: doc.contractName || "Unknown",
-            ipfsHash: doc.ipfsHash,
-            ipfsUrl: `https://gateway.pinata.cloud/ipfs/${doc.ipfsHash}`,
-            generator: doc.generator,
-            timestamp: Number(doc.timestamp),
-            version: Number(doc.version),
-            chainId: Number(doc.chainId),
-            contentHash: doc.contentHash || "",
-            functionCount: Number(doc.functionCount),
-            stateVarCount: Number(doc.stateVarCount),
-            hasPlayground: doc.hasPlayground,
-            hasDiff: doc.hasDiff,
-            network: networkName,
-          });
-        }
-      } catch {
-        // If getDocumentation also fails, create minimal entry from event
-        docs.push({
-          id: Number(logEvent.args[1]),
-          contractAddress: logEvent.args[0],
-          contractName: "Unknown",
-          ipfsHash: logEvent.args[2],
-          ipfsUrl: `https://gateway.pinata.cloud/ipfs/${logEvent.args[2]}`,
-          generator: "",
-          timestamp: 0,
-          version: 1,
-          chainId: 0,
-          contentHash: "",
-          functionCount: 0,
-          stateVarCount: 0,
-          hasPlayground: false,
-          hasDiff: false,
-          network: networkName,
-        });
-      }
-    }
-
-    return docs;
-  } catch {
     return [];
   }
 }

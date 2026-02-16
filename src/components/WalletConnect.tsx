@@ -210,6 +210,7 @@ export default function WalletConnect() {
           size="icon"
           onClick={disconnect}
           className="h-8 w-8"
+          aria-label="Disconnect wallet"
         >
           <LogOut className="h-4 w-4" />
         </Button>
