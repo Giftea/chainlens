@@ -16,7 +16,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ChainLens 2.0 - AI-Powered Smart Contract Documentation",
+  title: "ChainLens - AI-Powered Smart Contract Documentation",
   description:
     "Generate comprehensive, AI-powered documentation for any verified BSC smart contract. Features include security analysis, interactive playground, version diffing, and dependency visualization.",
   keywords: [
@@ -27,6 +27,10 @@ export const metadata: Metadata = {
     "AI",
     "Solidity",
   ],
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

@@ -86,7 +86,7 @@ export default function HomePage() {
       const registry = new ethers.Contract(
         contractAddress,
         REGISTRY_ABI,
-        provider
+        provider,
       );
 
       const [totalDocumented, totalVersions] = await Promise.all([
@@ -117,7 +117,7 @@ export default function HomePage() {
             stateVarCount: Number(d.stateVarCount),
             hasPlayground: d.hasPlayground,
             hasDiff: d.hasDiff,
-          })
+          }),
         );
         setRecentDocs(mapped);
       }
@@ -139,7 +139,7 @@ export default function HomePage() {
             Built for BNB Chain
           </Badge>
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight mb-6">
-            ChainLens 2.0
+            ChainLens
           </h1>
           <p className="text-xl md:text-2xl text-primary font-semibold mb-4">
             AI-Powered Smart Contract Documentation

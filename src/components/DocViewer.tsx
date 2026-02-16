@@ -42,7 +42,8 @@ import { Documentation, ExportFormat, FunctionDoc, SecurityFinding, GeneratedDoc
 import { exportToMarkdown } from "@/lib/exporters/markdown";
 import { exportToPDF } from "@/lib/exporters/pdf";
 import { exportToHTML } from "@/lib/exporters/html";
-import { getNetworkConfig } from "@/config/chains";
+// getNetworkConfig used internally by onchainPublisher
+import { publishDocumentation, generateShareUrl, type PublishProgress, type PublishStep } from "@/lib/onchainPublisher";
 import dynamic from "next/dynamic";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
@@ -56,36 +57,31 @@ interface DocViewerProps {
   abi?: AbiItem[];
 }
 
-type IPFSState =
-  | { status: "idle" }
-  | { status: "uploading" }
-  | { status: "success"; cid: string; url: string; contentHash: string }
-  | { status: "error"; message: string };
-
 export default function DocViewer({ documentation, generatedDocumentation, sourceCode, abi }: DocViewerProps) {
   const [exporting, setExporting] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [playgroundFunctionName, setPlaygroundFunctionName] = useState<string | null>(null);
-  const [ipfsState, setIpfsState] = useState<IPFSState>({ status: "idle" });
+  const [publishProgress, setPublishProgress] = useState<PublishProgress>({ step: "idle", message: "" });
   const [cidCopied, setCidCopied] = useState(false);
+  const [showPublishPanel, setShowPublishPanel] = useState(false);
 
   const handleExport = async (format: ExportFormat) => {
     setExporting(true);
     try {
       switch (format) {
         case "markdown": {
-          const md = exportToMarkdown(documentation);
+          const md = exportToMarkdown(documentation, generatedDocumentation);
           const blob = new Blob([md], { type: "text/markdown" });
           downloadBlob(blob, `${documentation.contractName}-docs.md`);
           break;
         }
         case "pdf": {
-          const pdf = exportToPDF(documentation);
+          const pdf = exportToPDF(documentation, generatedDocumentation);
           pdf.save(`${documentation.contractName}-docs.pdf`);
           break;
         }
         case "html": {
-          const html = exportToHTML(documentation);
+          const html = exportToHTML(documentation, generatedDocumentation, { theme: "dark" });
           const blob = new Blob([html], { type: "text/html" });
           downloadBlob(blob, `${documentation.contractName}-docs.html`);
           break;
@@ -96,51 +92,48 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
     }
   };
 
-  const handlePublishToIPFS = async () => {
-    setIpfsState({ status: "uploading" });
-    try {
-      const networkConfig = getNetworkConfig(documentation.network as NetworkType);
-      const response = await fetch("/api/upload-ipfs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode: "bundle",
-          documentation,
-          generatedDocumentation,
-          sourceCode,
-          abi: abi ? JSON.stringify(abi) : undefined,
-          network: documentation.network,
-          chainId: networkConfig.chainId,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Upload failed");
-      }
-
-      setIpfsState({
-        status: "success",
-        cid: data.cid,
-        url: data.url,
-        contentHash: data.contentHash,
-      });
-    } catch (error) {
-      setIpfsState({
-        status: "error",
-        message: error instanceof Error ? error.message : "Upload failed",
-      });
-    }
+  const handlePublish = async () => {
+    setShowPublishPanel(true);
+    await publishDocumentation(
+      {
+        contractAddress: documentation.contractAddress,
+        documentation,
+        generatedDocumentation,
+        sourceCode,
+        abi,
+        network: documentation.network as NetworkType,
+        hasPlayground: !!abi && abi.length > 0,
+        hasDiff: false,
+      },
+      (progress) => setPublishProgress(progress)
+    );
   };
 
   const handleCopyCid = async () => {
-    if (ipfsState.status === "success") {
-      await navigator.clipboard.writeText(ipfsState.cid);
+    if (publishProgress.ipfsCid) {
+      await navigator.clipboard.writeText(publishProgress.ipfsCid);
       setCidCopied(true);
       setTimeout(() => setCidCopied(false), 2000);
     }
   };
+
+  const handleCopyShareLink = async () => {
+    if (publishProgress.ipfsCid) {
+      const url = generateShareUrl(
+        documentation.contractAddress,
+        documentation.network as NetworkType,
+        publishProgress.ipfsCid
+      );
+      await navigator.clipboard.writeText(url);
+    }
+  };
+
+  const resetPublish = () => {
+    setPublishProgress({ step: "idle", message: "" });
+    setShowPublishPanel(false);
+  };
+
+  const isPublishing = publishProgress.step !== "idle" && publishProgress.step !== "success" && publishProgress.step !== "error";
 
   const hasTechnical = !!generatedDocumentation;
   const hasSource = !!sourceCode;
@@ -189,51 +182,36 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
             <Globe className="h-4 w-4 mr-1" /> HTML
           </Button>
           <div className="w-px bg-border mx-1 hidden sm:block" />
-          {ipfsState.status === "idle" && (
+          {publishProgress.step === "idle" && (
             <Button
               variant="default"
               size="sm"
-              onClick={handlePublishToIPFS}
+              onClick={handlePublish}
               className="bg-primary"
             >
-              <Upload className="h-4 w-4 mr-1" /> Publish to IPFS
+              <Upload className="h-4 w-4 mr-1" /> Publish On-Chain
             </Button>
           )}
-          {ipfsState.status === "uploading" && (
+          {isPublishing && (
             <Button variant="outline" size="sm" disabled>
               <Loader2 className="h-4 w-4 mr-1 animate-spin" /> Publishing...
             </Button>
           )}
-          {ipfsState.status === "success" && (
+          {publishProgress.step === "success" && (
             <div className="flex items-center gap-1.5">
               <Badge variant="outline" className="text-green-600 border-green-500/30 bg-green-500/10 gap-1">
                 <CheckCircle className="h-3 w-3" />
                 Published
               </Badge>
               <button
-                onClick={handleCopyCid}
-                className="inline-flex items-center gap-1 text-xs font-mono bg-muted px-2 py-1 rounded hover:bg-muted/80 transition-colors"
-                title="Copy CID"
+                onClick={() => setShowPublishPanel(!showPublishPanel)}
+                className="text-xs text-primary hover:underline"
               >
-                {cidCopied ? (
-                  <Check className="h-3 w-3 text-green-500" />
-                ) : (
-                  <Copy className="h-3 w-3 text-muted-foreground" />
-                )}
-                {ipfsState.cid.slice(0, 12)}...
+                Details
               </button>
-              <a
-                href={ipfsState.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1 rounded hover:bg-muted transition-colors"
-                title="View on IPFS"
-              >
-                <Link className="h-3.5 w-3.5 text-primary" />
-              </a>
             </div>
           )}
-          {ipfsState.status === "error" && (
+          {publishProgress.step === "error" && (
             <div className="flex items-center gap-1.5">
               <Badge variant="outline" className="text-red-600 border-red-500/30 bg-red-500/10 gap-1">
                 <XCircle className="h-3 w-3" />
@@ -242,7 +220,7 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handlePublishToIPFS}
+                onClick={handlePublish}
                 className="text-xs h-7"
               >
                 Retry
@@ -251,6 +229,20 @@ export default function DocViewer({ documentation, generatedDocumentation, sourc
           )}
         </div>
       </CardHeader>
+
+      {/* Publish Progress Panel */}
+      {showPublishPanel && (
+        <div className="mx-6 mb-4">
+          <PublishProgressPanel
+            progress={publishProgress}
+            onCopyCid={handleCopyCid}
+            onCopyShareLink={handleCopyShareLink}
+            cidCopied={cidCopied}
+            onClose={resetPublish}
+          />
+        </div>
+      )}
+
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="flex flex-wrap h-auto gap-1">
@@ -1104,6 +1096,204 @@ function FindingCard({ finding }: { finding: SecurityFinding }) {
       {finding.location && (
         <p className="text-[10px] font-mono text-muted-foreground mt-1">Location: {finding.location}</p>
       )}
+    </div>
+  );
+}
+
+/* -- Publish Progress Panel -- */
+
+const PUBLISH_STEPS: { key: PublishStep; label: string }[] = [
+  { key: "uploading", label: "Upload to IPFS" },
+  { key: "waiting-wallet", label: "Connect Wallet" },
+  { key: "signing", label: "Sign Transaction" },
+  { key: "confirming", label: "Confirm on Chain" },
+];
+
+function getStepIndex(step: PublishStep): number {
+  const idx = PUBLISH_STEPS.findIndex((s) => s.key === step);
+  if (step === "success") return PUBLISH_STEPS.length;
+  return idx >= 0 ? idx : -1;
+}
+
+function PublishProgressPanel({
+  progress,
+  onCopyCid,
+  onCopyShareLink,
+  cidCopied,
+  onClose,
+}: {
+  progress: PublishProgress;
+  onCopyCid: () => void;
+  onCopyShareLink: () => void;
+  cidCopied: boolean;
+  onClose: () => void;
+}) {
+  const currentIdx = getStepIndex(progress.step);
+  const isError = progress.step === "error";
+  const isSuccess = progress.step === "success";
+
+  return (
+    <div className="border rounded-lg bg-card overflow-hidden">
+      {/* Step indicator */}
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-sm">
+            {isSuccess ? "Published Successfully" : isError ? "Publishing Failed" : "Publishing Documentation"}
+          </h4>
+          {(isSuccess || isError) && (
+            <button
+              onClick={onClose}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1">
+          {PUBLISH_STEPS.map((step, i) => {
+            const isActive = i === currentIdx;
+            const isComplete = i < currentIdx || isSuccess;
+            const isFailed = isError && i === currentIdx;
+
+            return (
+              <div key={step.key} className="flex items-center flex-1">
+                <div className="flex flex-col items-center flex-1">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                      isComplete
+                        ? "bg-green-500/20 text-green-500 border border-green-500/30"
+                        : isFailed
+                          ? "bg-red-500/20 text-red-500 border border-red-500/30"
+                          : isActive
+                            ? "bg-primary/20 text-primary border border-primary/30"
+                            : "bg-muted text-muted-foreground border border-border"
+                    }`}
+                  >
+                    {isComplete ? (
+                      <Check className="h-3.5 w-3.5" />
+                    ) : isFailed ? (
+                      <XCircle className="h-3.5 w-3.5" />
+                    ) : isActive ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      i + 1
+                    )}
+                  </div>
+                  <span className={`text-[10px] mt-1 text-center ${isActive || isComplete ? "text-foreground" : "text-muted-foreground"}`}>
+                    {step.label}
+                  </span>
+                </div>
+                {i < PUBLISH_STEPS.length - 1 && (
+                  <div
+                    className={`h-px flex-1 mx-1 mb-4 ${
+                      i < currentIdx || isSuccess ? "bg-green-500/40" : "bg-border"
+                    }`}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Status message */}
+      <div className="p-4 space-y-3">
+        <p className={`text-sm ${isError ? "text-red-500" : "text-muted-foreground"}`}>
+          {progress.message}
+        </p>
+
+        {/* IPFS info */}
+        {progress.ipfsCid && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">IPFS:</span>
+            <button
+              onClick={onCopyCid}
+              className="inline-flex items-center gap-1 font-mono bg-muted px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+            >
+              {cidCopied ? (
+                <Check className="h-3 w-3 text-green-500" />
+              ) : (
+                <Copy className="h-3 w-3 text-muted-foreground" />
+              )}
+              {progress.ipfsCid.slice(0, 16)}...
+            </button>
+            {progress.ipfsUrl && (
+              <a
+                href={progress.ipfsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="View on IPFS"
+              >
+                <ExternalLink className="h-3.5 w-3.5 text-primary" />
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Transaction info */}
+        {progress.txHash && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Tx:</span>
+            <span className="font-mono bg-muted px-2 py-1 rounded">
+              {progress.txHash.slice(0, 10)}...{progress.txHash.slice(-8)}
+            </span>
+            {progress.explorerUrl && (
+              <a
+                href={progress.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                View on Explorer <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Gas estimate */}
+        {progress.gasEstimate && (
+          <div className="text-xs text-muted-foreground">
+            Gas estimate: {Number(progress.gasEstimate).toLocaleString()} units
+          </div>
+        )}
+
+        {/* Documentation ID */}
+        {progress.documentationId && (
+          <div className="text-xs text-muted-foreground">
+            Documentation ID: #{progress.documentationId}
+          </div>
+        )}
+
+        {/* Success actions */}
+        {isSuccess && (
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={onCopyShareLink}>
+              <Link className="h-3.5 w-3.5 mr-1" /> Copy Share Link
+            </Button>
+            {progress.explorerUrl && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={progress.explorerUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1" /> View Transaction
+                </a>
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Error details */}
+        {isError && progress.error && progress.error !== progress.message && (
+          <details className="text-xs">
+            <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
+              Error details
+            </summary>
+            <pre className="mt-1 bg-muted rounded p-2 overflow-x-auto text-red-400">
+              {progress.error}
+            </pre>
+          </details>
+        )}
+      </div>
     </div>
   );
 }

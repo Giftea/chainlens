@@ -1,6 +1,6 @@
 /**
  * @module dependencyMapper
- * @description Dependency graph builder for ChainLens 2.0.
+ * @description Dependency graph builder for ChainLens.
  *
  * Maps entire protocol ecosystems by analyzing contract source code,
  * discovering inheritance chains, imports, external calls, and proxy
@@ -14,7 +14,12 @@
 
 import { parseContract } from "@/lib/astParser";
 import { fetchContractSource } from "@/lib/contractFetcher";
-import { DependencyGraph, DependencyNode, DependencyEdge, ContractSource } from "@/types";
+import {
+  DependencyGraph,
+  DependencyNode,
+  DependencyEdge,
+  ContractSource,
+} from "@/types";
 
 // ============================================================
 //                        TYPES
@@ -87,34 +92,35 @@ const NODE_SIZES: Record<ContractNode["type"], number> = {
   interface: 18,
 };
 
-const OZ_CONTRACT_TYPES: Record<string, "library" | "interface" | "imported"> = {
-  Ownable: "imported",
-  Ownable2Step: "imported",
-  ERC20: "imported",
-  ERC721: "imported",
-  ERC1155: "imported",
-  IERC20: "interface",
-  IERC721: "interface",
-  IERC1155: "interface",
-  IERC20Metadata: "interface",
-  ReentrancyGuard: "imported",
-  Pausable: "imported",
-  AccessControl: "imported",
-  SafeERC20: "library",
-  SafeMath: "library",
-  Address: "library",
-  Strings: "library",
-  EnumerableSet: "library",
-  EnumerableMap: "library",
-  Counters: "library",
-  Math: "library",
-  Context: "imported",
-  Initializable: "imported",
-  UUPSUpgradeable: "imported",
-  ERC1967Upgrade: "imported",
-  TransparentUpgradeableProxy: "imported",
-  BeaconProxy: "imported",
-};
+const OZ_CONTRACT_TYPES: Record<string, "library" | "interface" | "imported"> =
+  {
+    Ownable: "imported",
+    Ownable2Step: "imported",
+    ERC20: "imported",
+    ERC721: "imported",
+    ERC1155: "imported",
+    IERC20: "interface",
+    IERC721: "interface",
+    IERC1155: "interface",
+    IERC20Metadata: "interface",
+    ReentrancyGuard: "imported",
+    Pausable: "imported",
+    AccessControl: "imported",
+    SafeERC20: "library",
+    SafeMath: "library",
+    Address: "library",
+    Strings: "library",
+    EnumerableSet: "library",
+    EnumerableMap: "library",
+    Counters: "library",
+    Math: "library",
+    Context: "imported",
+    Initializable: "imported",
+    UUPSUpgradeable: "imported",
+    ERC1967Upgrade: "imported",
+    TransparentUpgradeableProxy: "imported",
+    BeaconProxy: "imported",
+  };
 
 // ============================================================
 //                  DETECTION HELPERS
@@ -140,12 +146,16 @@ function isStandardLibrary(importPath: string): boolean {
 function inferNodeType(
   name: string,
   importPath?: string,
-  contractKind?: string
+  contractKind?: string,
 ): ContractNode["type"] {
   if (contractKind === "interface") return "interface";
   if (contractKind === "library") return "library";
   if (OZ_CONTRACT_TYPES[name]) return OZ_CONTRACT_TYPES[name];
-  if (name.startsWith("I") && name.length > 1 && name[1] === name[1]?.toUpperCase()) {
+  if (
+    name.startsWith("I") &&
+    name.length > 1 &&
+    name[1] === name[1]?.toUpperCase()
+  ) {
     return "interface";
   }
   if (importPath && isStandardLibrary(importPath)) return "imported";
@@ -169,7 +179,7 @@ function analyzeContractDependencies(sourceCode: string) {
   for (const fn of parsed.functions) {
     for (const call of fn.externalCalls) {
       const exists = externalCallRefs.some(
-        (c) => c.contract === call.contract && c.function === call.function
+        (c) => c.contract === call.contract && c.function === call.function,
       );
       if (!exists) {
         externalCallRefs.push(call);
@@ -206,7 +216,7 @@ export async function buildFullDependencyGraph(
   contractAddress: string,
   sourceCode: string,
   chainId: number,
-  maxDepth: number = DEFAULT_MAX_DEPTH
+  maxDepth: number = DEFAULT_MAX_DEPTH,
 ): Promise<FullDependencyGraph> {
   const nodes: ContractNode[] = [];
   const edges: ContractEdge[] = [];
@@ -231,7 +241,7 @@ export async function buildFullDependencyGraph(
         e.source === edge.source &&
         e.target === edge.target &&
         e.type === edge.type &&
-        e.label === edge.label
+        e.label === edge.label,
     );
     if (!exists) edges.push(edge);
   }
@@ -399,7 +409,7 @@ export async function buildFullDependencyGraph(
         try {
           const implSource = await fetchContractSource(
             rootContract.implementation,
-            chainId
+            chainId,
           );
           if (implSource.verified) {
             analyzeDepthLevel(
@@ -413,7 +423,7 @@ export async function buildFullDependencyGraph(
               edges,
               nId,
               addNode,
-              addEdge
+              addEdge,
             );
           }
         } catch {
@@ -428,10 +438,7 @@ export async function buildFullDependencyGraph(
   // ---- Step 7: Recursive depth analysis for addressed nodes ----
   if (maxDepth > 1) {
     const addressedNodes = nodes.filter(
-      (n) =>
-        n.address &&
-        n.address.length === 42 &&
-        !visited.has(n.id)
+      (n) => n.address && n.address.length === 42 && !visited.has(n.id),
     );
 
     for (const node of addressedNodes) {
@@ -450,7 +457,7 @@ export async function buildFullDependencyGraph(
             edges,
             nId,
             addNode,
-            addEdge
+            addEdge,
           );
         }
       } catch {
@@ -486,7 +493,7 @@ function analyzeDepthLevel(
   edges: ContractEdge[],
   nId: (name: string) => string,
   addNodeFn: (node: ContractNode) => ContractNode,
-  addEdgeFn: (edge: ContractEdge) => void
+  addEdgeFn: (edge: ContractEdge) => void,
 ): void {
   if (currentDepth > maxDepth || visited.has(parentId)) return;
   if (nodes.length >= MAX_NODES) return;
@@ -632,7 +639,7 @@ function analyzeDepthLevel(
  */
 export function buildLocalDependencyGraph(
   contractAddress: string,
-  sourceCode: string
+  sourceCode: string,
 ): FullDependencyGraph {
   const analysis = analyzeContractDependencies(sourceCode);
   const rootId = contractAddress.toLowerCase();
@@ -656,7 +663,7 @@ export function buildLocalDependencyGraph(
       (e) =>
         e.source === edge.source &&
         e.target === edge.target &&
-        e.type === edge.type
+        e.type === edge.type,
     );
     if (!exists) edges.push(edge);
   }
@@ -692,7 +699,12 @@ export function buildLocalDependencyGraph(
       size: NODE_SIZES[ptype],
     });
 
-    addEdge({ source: rootId, target: pid, type: "inheritance", label: "inherits" });
+    addEdge({
+      source: rootId,
+      target: pid,
+      type: "inheritance",
+      label: "inherits",
+    });
   }
 
   // Imports
@@ -748,7 +760,12 @@ export function buildLocalDependencyGraph(
       });
     }
 
-    addEdge({ source: rootId, target: callId, type: "call", label: call.function });
+    addEdge({
+      source: rootId,
+      target: callId,
+      type: "call",
+      label: call.function,
+    });
   }
 
   // Declared interfaces
@@ -768,7 +785,12 @@ export function buildLocalDependencyGraph(
       size: NODE_SIZES.interface,
     });
 
-    addEdge({ source: rootId, target: ifaceId, type: "import", label: "declares" });
+    addEdge({
+      source: rootId,
+      target: ifaceId,
+      type: "import",
+      label: "declares",
+    });
   }
 
   calculateHierarchicalLayout(nodes, edges, rootId);
@@ -802,13 +824,14 @@ export function buildDependencyGraph(sourceCode: string): DependencyGraph {
   nodes.push({
     id: parsed.contractName || "unknown",
     name: parsed.contractName || "unknown",
-    type: parsed.contractKind === "interface"
-      ? "interface"
-      : parsed.contractKind === "library"
+    type:
+      parsed.contractKind === "interface"
+        ? "interface"
+        : parsed.contractKind === "library"
         ? "library"
         : parsed.contractKind === "abstract"
-          ? "abstract"
-          : "contract",
+        ? "abstract"
+        : "contract",
     functions: parsed.functions.map((f) => f.name),
   });
   nodeNames.add(parsed.contractName || "unknown");
@@ -819,9 +842,12 @@ export function buildDependencyGraph(sourceCode: string): DependencyGraph {
       nodes.push({
         id: parent,
         name: parent,
-        type: parent.startsWith("I") && parent.length > 1 && parent[1] === parent[1]?.toUpperCase()
-          ? "interface"
-          : "contract",
+        type:
+          parent.startsWith("I") &&
+          parent.length > 1 &&
+          parent[1] === parent[1]?.toUpperCase()
+            ? "interface"
+            : "contract",
         functions: [],
       });
       nodeNames.add(parent);
@@ -844,7 +870,8 @@ export function buildDependencyGraph(sourceCode: string): DependencyGraph {
     for (const symbol of symbols) {
       if (nodeNames.has(symbol)) continue;
 
-      const isLib = imp.path.toLowerCase().includes("library") ||
+      const isLib =
+        imp.path.toLowerCase().includes("library") ||
         OZ_CONTRACT_TYPES[symbol] === "library";
 
       nodes.push({
@@ -874,7 +901,7 @@ export function buildDependencyGraph(sourceCode: string): DependencyGraph {
 function calculateHierarchicalLayout(
   nodes: ContractNode[],
   edges: ContractEdge[],
-  rootId: string
+  rootId: string,
 ): void {
   if (nodes.length === 0) return;
 
@@ -935,7 +962,7 @@ function calculateHierarchicalLayout(
 
 function calcMaxInheritanceDepth(
   nodes: ContractNode[],
-  inheritanceEdges: ContractEdge[]
+  inheritanceEdges: ContractEdge[],
 ): number {
   let maxDepth = 0;
   const dfsVisited = new Set<string>();
@@ -965,7 +992,7 @@ function calcMaxInheritanceDepth(
 function computeStats(
   nodes: ContractNode[],
   edges: ContractEdge[],
-  proxyDetected: boolean
+  proxyDetected: boolean,
 ): GraphStats {
   const callEdges = edges.filter((e) => e.type === "call");
   const importEdges = edges.filter((e) => e.type === "import");
@@ -998,7 +1025,9 @@ function computeStats(
 /**
  * Convert a FullDependencyGraph or basic DependencyGraph to React Flow-compatible data.
  */
-export function graphToReactFlowData(graph: FullDependencyGraph | DependencyGraph) {
+export function graphToReactFlowData(
+  graph: FullDependencyGraph | DependencyGraph,
+) {
   // Handle basic DependencyGraph (backward compat)
   if (!("rootContract" in graph)) {
     return graphToReactFlowDataBasic(graph);
@@ -1022,7 +1051,10 @@ export function graphToReactFlowData(graph: FullDependencyGraph | DependencyGrap
     style: {
       background: node.color || NODE_COLORS[node.type],
       color: "#fff",
-      border: node.type === "main" ? "3px solid #fff" : "1px solid rgba(255,255,255,0.3)",
+      border:
+        node.type === "main"
+          ? "3px solid #fff"
+          : "1px solid rgba(255,255,255,0.3)",
       borderRadius: "8px",
       padding: "10px 14px",
       fontWeight: node.type === "main" ? "bold" : "normal",
@@ -1111,12 +1143,15 @@ function graphToReactFlowDataBasic(graph: DependencyGraph) {
 //                      CACHE
 // ============================================================
 
-const graphCache: Record<string, { graph: FullDependencyGraph; timestamp: number }> = {};
+const graphCache: Record<
+  string,
+  { graph: FullDependencyGraph; timestamp: number }
+> = {};
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
 export function getCachedGraph(
   address: string,
-  chainId: number
+  chainId: number,
 ): FullDependencyGraph | null {
   const key = `${address.toLowerCase()}-${chainId}`;
   const cached = graphCache[key];
@@ -1131,7 +1166,7 @@ export function getCachedGraph(
 export function cacheGraph(
   address: string,
   chainId: number,
-  graph: FullDependencyGraph
+  graph: FullDependencyGraph,
 ): void {
   const key = `${address.toLowerCase()}-${chainId}`;
   graphCache[key] = { graph, timestamp: Date.now() };

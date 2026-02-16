@@ -1,4 +1,4 @@
-# ChainLens 2.0
+# ChainLens
 
 AI-Powered Smart Contract Documentation Generator for BNB Chain.
 

@@ -2,7 +2,7 @@
  * @module documentationGenerator
  * @description AI-powered smart contract documentation engine using Claude.
  *
- * This is the core feature of ChainLens 2.0. It analyzes Solidity source code
+ * This is the core feature of ChainLens. It analyzes Solidity source code
  * and generates comprehensive, human-readable documentation including:
  * - Executive summary for non-technical users
  * - Technical overview for developers
@@ -222,7 +222,7 @@ function getDocCacheKey(address: string, chainId: number): string {
 
 function getFromDocCache(
   address: string,
-  chainId: number
+  chainId: number,
 ): GeneratedDocumentation | null {
   const key = getDocCacheKey(address, chainId);
   const entry = docCache.get(key);
@@ -237,7 +237,7 @@ function getFromDocCache(
 function setDocCache(
   address: string,
   chainId: number,
-  data: GeneratedDocumentation
+  data: GeneratedDocumentation,
 ): void {
   docCache.set(getDocCacheKey(address, chainId), {
     data,
@@ -279,7 +279,9 @@ function preAnalyze(sourceCode: string): ASTContext {
     return {
       functionNames: functions.map((f) => f.signature || f.name),
       eventNames: events.map((e) => e.name),
-      stateVarSummary: stateVars.map((v) => `${v.type} ${v.visibility} ${v.name}`),
+      stateVarSummary: stateVars.map(
+        (v) => `${v.type} ${v.visibility} ${v.name}`,
+      ),
       modifierNames: modifiers.map((m) => m.name),
       inheritance,
       imports,
@@ -303,7 +305,7 @@ function buildUserPrompt(
   abi: string,
   address: string,
   chainId: number,
-  astContext: ASTContext
+  astContext: ASTContext,
 ): string {
   // Truncate source for large contracts (keep within context window)
   const maxSourceLength = 50000;
@@ -319,13 +321,15 @@ function buildUserPrompt(
     const abiArr = JSON.parse(abi);
     const limited = abiArr.slice(0, 50);
     abiSummary = JSON.stringify(
-      limited.map((a: { type: string; name?: string; stateMutability?: string }) => ({
-        type: a.type,
-        name: a.name,
-        stateMutability: a.stateMutability,
-      })),
+      limited.map(
+        (a: { type: string; name?: string; stateMutability?: string }) => ({
+          type: a.type,
+          name: a.name,
+          stateMutability: a.stateMutability,
+        }),
+      ),
       null,
-      2
+      2,
     );
   } catch {
     // ABI might be invalid
@@ -336,7 +340,15 @@ function buildUserPrompt(
     ``,
     `CONTRACT: ${contractName}`,
     `ADDRESS: ${address}`,
-    `CHAIN ID: ${chainId} (${chainId === 56 ? "BSC Mainnet" : chainId === 97 ? "BSC Testnet" : chainId === 204 ? "opBNB" : "Unknown"})`,
+    `CHAIN ID: ${chainId} (${
+      chainId === 56
+        ? "BSC Mainnet"
+        : chainId === 97
+        ? "BSC Testnet"
+        : chainId === 204
+        ? "opBNB"
+        : "Unknown"
+    })`,
     ``,
     `SOURCE CODE:`,
     "```solidity",
@@ -353,13 +365,25 @@ function buildUserPrompt(
     parts.push(`IMPORTS: ${astContext.imports.join(", ")}`);
   }
   if (astContext.functionNames.length > 0) {
-    parts.push(`FUNCTIONS (${astContext.functionNames.length}): ${astContext.functionNames.join("; ")}`);
+    parts.push(
+      `FUNCTIONS (${
+        astContext.functionNames.length
+      }): ${astContext.functionNames.join("; ")}`,
+    );
   }
   if (astContext.eventNames.length > 0) {
-    parts.push(`EVENTS (${astContext.eventNames.length}): ${astContext.eventNames.join(", ")}`);
+    parts.push(
+      `EVENTS (${astContext.eventNames.length}): ${astContext.eventNames.join(
+        ", ",
+      )}`,
+    );
   }
   if (astContext.stateVarSummary.length > 0) {
-    parts.push(`STATE VARIABLES (${astContext.stateVarSummary.length}): ${astContext.stateVarSummary.join("; ")}`);
+    parts.push(
+      `STATE VARIABLES (${
+        astContext.stateVarSummary.length
+      }): ${astContext.stateVarSummary.join("; ")}`,
+    );
   }
   if (astContext.modifierNames.length > 0) {
     parts.push(`MODIFIERS: ${astContext.modifierNames.join(", ")}`);
@@ -450,7 +474,10 @@ function repairTruncatedJSON(jsonStr: string): string {
   if (lastCompleteColon > lastCompleteComma) {
     // We might be in the middle of a value — try parsing, if it fails, strip
     try {
-      const test = repaired + "]".repeat(Math.max(0, brackets)) + "}".repeat(Math.max(0, braces));
+      const test =
+        repaired +
+        "]".repeat(Math.max(0, brackets)) +
+        "}".repeat(Math.max(0, braces));
       JSON.parse(test);
       repaired = test;
       return repaired;
@@ -464,9 +491,18 @@ function repairTruncatedJSON(jsonStr: string): string {
         inString = false;
         escaped = false;
         for (const ch of repaired) {
-          if (escaped) { escaped = false; continue; }
-          if (ch === "\\") { escaped = true; continue; }
-          if (ch === '"') { inString = !inString; continue; }
+          if (escaped) {
+            escaped = false;
+            continue;
+          }
+          if (ch === "\\") {
+            escaped = true;
+            continue;
+          }
+          if (ch === '"') {
+            inString = !inString;
+            continue;
+          }
           if (inString) continue;
           if (ch === "{") braces++;
           else if (ch === "}") braces--;
@@ -489,7 +525,7 @@ function parseAndValidate(
   contractName: string,
   address: string,
   chainId: number,
-  linesOfCode: number
+  linesOfCode: number,
 ): GeneratedDocumentation {
   let parsed;
   try {
@@ -518,33 +554,31 @@ function parseAndValidate(
         visibility: v.visibility || "internal",
         description: v.description || "",
         purpose: v.purpose || "",
-      })
+      }),
     ),
 
-    functions: (parsed.functions || []).map(
-      (f: Partial<GenFunctionDoc>) => ({
-        name: f.name || "",
-        signature: f.signature || "",
-        visibility: f.visibility || "public",
-        stateMutability: f.stateMutability || "nonpayable",
-        parameters: (f.parameters || []).map((p: Partial<GenParameter>) => ({
-          name: p.name || "",
-          type: p.type || "",
-          description: p.description || "",
-        })),
-        returns: (f.returns || []).map((p: Partial<GenParameter>) => ({
-          name: p.name || "",
-          type: p.type || "",
-          description: p.description || "",
-        })),
-        description: f.description || "",
-        businessLogic: f.businessLogic || "",
-        accessControl: f.accessControl || "No restrictions",
-        gasEstimate: f.gasEstimate,
-        risks: f.risks || [],
-        example: f.example,
-      })
-    ),
+    functions: (parsed.functions || []).map((f: Partial<GenFunctionDoc>) => ({
+      name: f.name || "",
+      signature: f.signature || "",
+      visibility: f.visibility || "public",
+      stateMutability: f.stateMutability || "nonpayable",
+      parameters: (f.parameters || []).map((p: Partial<GenParameter>) => ({
+        name: p.name || "",
+        type: p.type || "",
+        description: p.description || "",
+      })),
+      returns: (f.returns || []).map((p: Partial<GenParameter>) => ({
+        name: p.name || "",
+        type: p.type || "",
+        description: p.description || "",
+      })),
+      description: f.description || "",
+      businessLogic: f.businessLogic || "",
+      accessControl: f.accessControl || "No restrictions",
+      gasEstimate: f.gasEstimate,
+      risks: f.risks || [],
+      example: f.example,
+    })),
 
     events: (parsed.events || []).map((e: Partial<GenEventDoc>) => ({
       name: e.name || "",
@@ -558,18 +592,16 @@ function parseAndValidate(
       purpose: e.purpose || "",
     })),
 
-    modifiers: (parsed.modifiers || []).map(
-      (m: Partial<GenModifierDoc>) => ({
-        name: m.name || "",
-        parameters: (m.parameters || []).map((p: Partial<GenParameter>) => ({
-          name: p.name || "",
-          type: p.type || "",
-          description: p.description || "",
-        })),
-        description: m.description || "",
-        purpose: m.purpose || "",
-      })
-    ),
+    modifiers: (parsed.modifiers || []).map((m: Partial<GenModifierDoc>) => ({
+      name: m.name || "",
+      parameters: (m.parameters || []).map((p: Partial<GenParameter>) => ({
+        name: p.name || "",
+        type: p.type || "",
+        description: p.description || "",
+      })),
+      description: m.description || "",
+      purpose: m.purpose || "",
+    })),
 
     designPatterns: parsed.designPatterns || [],
     inheritanceTree: parsed.inheritanceTree || [],
@@ -578,14 +610,14 @@ function parseAndValidate(
         targetContract: c.targetContract || "",
         function: c.function || "",
         purpose: c.purpose || "",
-      })
+      }),
     ),
     securityConsiderations: parsed.securityConsiderations || [],
     gasOptimizations: parsed.gasOptimizations || [],
     useCases: parsed.useCases || [],
 
     complexity: ["Low", "Medium", "High", "Very High"].includes(
-      parsed.complexity
+      parsed.complexity,
     )
       ? parsed.complexity
       : "Medium",
@@ -606,7 +638,7 @@ function parseAndValidate(
  */
 export function toDocumentation(
   gen: GeneratedDocumentation,
-  network: string
+  network: string,
 ): Documentation {
   return {
     id: `doc-${Date.now()}`,
@@ -626,18 +658,18 @@ export function toDocumentation(
             name: p.name,
             type: p.type,
             description: p.description,
-          })
+          }),
         ),
         returns: f.returns.map(
           (p): ParamDoc => ({
             name: p.name,
             type: p.type,
             description: p.description,
-          })
+          }),
         ),
         modifiers: [],
         securityNotes: f.risks || [],
-      })
+      }),
     ),
     events: gen.events.map(
       (e): EventDoc => ({
@@ -648,9 +680,9 @@ export function toDocumentation(
             name: p.name,
             type: p.type,
             description: p.description,
-          })
+          }),
         ),
-      })
+      }),
     ),
     stateVariables: gen.stateVariables.map(
       (v): StateVariableDoc => ({
@@ -660,7 +692,7 @@ export function toDocumentation(
         description: v.description,
         isConstant: false,
         isImmutable: false,
-      })
+      }),
     ),
     modifiers: gen.modifiers.map(
       (m): ModifierDoc => ({
@@ -671,19 +703,19 @@ export function toDocumentation(
             name: p.name,
             type: p.type,
             description: p.description,
-          })
+          }),
         ),
-      })
+      }),
     ),
     securityAnalysis: {
       riskLevel:
         gen.securityConsiderations.length > 5
           ? "high"
           : gen.securityConsiderations.length > 2
-            ? "medium"
-            : "low",
+          ? "medium"
+          : "low",
       findings: gen.securityConsiderations.map((note, i) => ({
-        severity: i < 2 ? "high" : i < 4 ? "medium" : "low" as const,
+        severity: i < 2 ? "high" : i < 4 ? "medium" : ("low" as const),
         title: note.split(".")[0] || note.slice(0, 60),
         description: note,
       })),
@@ -717,7 +749,7 @@ export async function generateDocumentation(
   contractName: string,
   abi: string,
   address: string,
-  chainId: number
+  chainId: number,
 ): Promise<GeneratedDocumentation> {
   // Check cache
   const cached = getFromDocCache(address, chainId);
@@ -726,7 +758,7 @@ export async function generateDocumentation(
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY not configured. Set it in your .env file."
+      "ANTHROPIC_API_KEY not configured. Set it in your .env file.",
     );
   }
 
@@ -741,7 +773,7 @@ export async function generateDocumentation(
     abi,
     address,
     chainId,
-    astContext
+    astContext,
   );
 
   const client = new Anthropic({ apiKey });
@@ -758,9 +790,7 @@ export async function generateDocumentation(
       });
 
       const responseText = message.content
-        .filter(
-          (block): block is Anthropic.TextBlock => block.type === "text"
-        )
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
         .map((block) => block.text)
         .join("");
 
@@ -770,7 +800,7 @@ export async function generateDocumentation(
         contractName,
         address,
         chainId,
-        linesOfCode
+        linesOfCode,
       );
 
       // Cache the result
@@ -817,17 +847,17 @@ export function generateDocumentationStream(
   abi: string,
   address: string,
   chainId: number,
-  network: string = "bsc-mainnet"
+  network: string = "bsc-mainnet",
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
   function sendEvent(
     controller: ReadableStreamDefaultController<Uint8Array>,
     event: string,
-    data: unknown
+    data: unknown,
   ) {
     controller.enqueue(
-      encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+      encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
     );
   }
 
@@ -883,7 +913,7 @@ export function generateDocumentationStream(
           abi,
           address,
           chainId,
-          astContext
+          astContext,
         );
 
         // Stage 3: Generating
@@ -910,7 +940,7 @@ export function generateDocumentationStream(
 
           // Send progress updates periodically (every 5 chunks to avoid flooding)
           if (chunkCount % 5 === 0) {
-            const percent = Math.min(30 + (chunkCount / 2), 85);
+            const percent = Math.min(30 + chunkCount / 2, 85);
             try {
               sendEvent(controller, "progress", {
                 stage: "generating",
@@ -938,7 +968,7 @@ export function generateDocumentationStream(
           contractName,
           address,
           chainId,
-          linesOfCode
+          linesOfCode,
         );
 
         // Cache the result
@@ -955,7 +985,10 @@ export function generateDocumentationStream(
         const message =
           error instanceof Error ? error.message : "Unknown error";
         try {
-          sendEvent(controller, "error", { error: message, code: "GENERATION_FAILED" });
+          sendEvent(controller, "error", {
+            error: message,
+            code: "GENERATION_FAILED",
+          });
         } catch {
           // Controller may already be closed
         }

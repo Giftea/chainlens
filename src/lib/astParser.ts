@@ -1,6 +1,6 @@
 /**
  * @module astParser
- * @description Comprehensive Solidity AST parser for ChainLens 2.0.
+ * @description Comprehensive Solidity AST parser for ChainLens.
  *
  * Powers:
  * - AI documentation generator (pre-analysis)
@@ -206,7 +206,7 @@ export function parseContractAST(sourceCode: string): ASTNode {
   } catch (error) {
     console.error("AST parsing error:", error);
     throw new Error(
-      `Failed to parse Solidity source code: ${(error as Error).message}`
+      `Failed to parse Solidity source code: ${(error as Error).message}`,
     );
   }
 }
@@ -235,7 +235,7 @@ export function extractFunctions(ast: ASTNode): FunctionDoc[] {
         node.name || "",
         params,
         node.visibility || "public",
-        node.stateMutability || ""
+        node.stateMutability || "",
       );
 
       functions.push({
@@ -363,9 +363,7 @@ export function extractImports(sourceCode: string): string[] {
 // ============================================================
 
 /** Extract rich function nodes with call graph and complexity */
-function extractFunctionNodes(
-  ast: ASTNode
-): FunctionNode[] {
+function extractFunctionNodes(ast: ASTNode): FunctionNode[] {
   const functions: FunctionNode[] = [];
 
   visitNodes(ast, (node) => {
@@ -381,7 +379,7 @@ function extractFunctionNodes(
           name: p.name || "",
           type: resolveTypeName(p.typeName),
           storageLocation: p.storageLocation,
-        })
+        }),
       );
 
       const modifiers = (node.modifiers || []).map((m) => m.name);
@@ -414,9 +412,7 @@ function extractFunctionNodes(
 }
 
 /** Extract state variables with line info */
-function extractStateVariableNodes(
-  ast: ASTNode
-): StateVariableNode[] {
+function extractStateVariableNodes(ast: ASTNode): StateVariableNode[] {
   const variables: StateVariableNode[] = [];
 
   visitNodes(ast, (node) => {
@@ -538,9 +534,7 @@ function extractEnums(ast: ASTNode): EnumNode[] {
 
 /** Extract pragma version from source code */
 function extractPragma(sourceCode: string): string {
-  const match = sourceCode.match(
-    /pragma\s+solidity\s+([^;]+);/
-  );
+  const match = sourceCode.match(/pragma\s+solidity\s+([^;]+);/);
   return match ? match[1].trim() : "";
 }
 
@@ -549,8 +543,7 @@ function extractImportInfo(sourceCode: string): ImportInfo[] {
   const imports: ImportInfo[] = [];
 
   // Named imports: import { A, B } from "path";
-  const namedRegex =
-    /import\s+\{([^}]+)\}\s+from\s+["']([^"']+)["']/g;
+  const namedRegex = /import\s+\{([^}]+)\}\s+from\s+["']([^"']+)["']/g;
   let match;
   while ((match = namedRegex.exec(sourceCode)) !== null) {
     const symbols = match[1]
@@ -561,8 +554,7 @@ function extractImportInfo(sourceCode: string): ImportInfo[] {
   }
 
   // Default imports: import "path"; or import "path" as Alias;
-  const defaultRegex =
-    /import\s+["']([^"']+)["'](?:\s+as\s+(\w+))?/g;
+  const defaultRegex = /import\s+["']([^"']+)["'](?:\s+as\s+(\w+))?/g;
   while ((match = defaultRegex.exec(sourceCode)) !== null) {
     // Skip if already captured as a named import
     if (!imports.some((i) => i.path === match![1])) {
@@ -591,16 +583,16 @@ export function findFunctionCalls(node: ASTNode | undefined | null): string[] {
 
   visitNodes(node, (n) => {
     // Direct function call: foo(...)
-    if (
-      n.type === "FunctionCall" &&
-      n.expression
-    ) {
+    if (n.type === "FunctionCall" && n.expression) {
       const expr = n.expression;
       if (expr.type === "Identifier" && expr.name) {
         calls.add(expr.name);
       }
       // Member access: this.foo(...) or contract.foo(...)
-      if (expr.type === "MemberAccess" && (expr as unknown as Record<string, string>).memberName) {
+      if (
+        expr.type === "MemberAccess" &&
+        (expr as unknown as Record<string, string>).memberName
+      ) {
         calls.add((expr as unknown as Record<string, string>).memberName);
       }
     }
@@ -614,7 +606,7 @@ export function findFunctionCalls(node: ASTNode | undefined | null): string[] {
  * Looks for patterns like: `IERC20(token).transfer(...)` or `contract.call(...)`.
  */
 function findExternalCalls(
-  node: ASTNode | undefined | null
+  node: ASTNode | undefined | null,
 ): { contract: string; function: string }[] {
   if (!node) return [];
   const externalCalls: { contract: string; function: string }[] = [];
@@ -720,7 +712,7 @@ export function extractFunctionSignature(node: ASTNode): string {
     node.name || (node.isConstructor ? "constructor" : ""),
     params,
     node.visibility || "public",
-    node.stateMutability || ""
+    node.stateMutability || "",
   );
 }
 
@@ -731,7 +723,7 @@ export function extractFunctionSignature(node: ASTNode): string {
 /** Recursively visit all nodes in the AST */
 function visitNodes(
   node: ASTNode | undefined | null,
-  callback: (node: ASTNode) => void
+  callback: (node: ASTNode) => void,
 ) {
   if (!node) return;
   callback(node);
@@ -800,7 +792,9 @@ function resolveTypeName(typeName: TypeNameNode): string {
     case "ArrayTypeName":
       return `${resolveTypeName(typeName.baseTypeName!)}[]`;
     case "Mapping":
-      return `mapping(${resolveTypeName(typeName.keyType!)} => ${resolveTypeName(typeName.valueType!)})`;
+      return `mapping(${resolveTypeName(
+        typeName.keyType!,
+      )} => ${resolveTypeName(typeName.valueType!)})`;
     default:
       return typeName.name || "unknown";
   }
@@ -811,7 +805,7 @@ function buildFunctionSignature(
   name: string,
   params: ParamDoc[],
   visibility: string,
-  stateMutability: string
+  stateMutability: string,
 ): string {
   const paramStr = params.map((p) => `${p.type} ${p.name}`).join(", ");
   const parts = [`function ${name}(${paramStr})`];
@@ -838,7 +832,7 @@ function findMainContract(ast: ASTNode): ASTNode | null {
 
 /** Detect the kind of contract */
 function detectContractKind(
-  node: ASTNode | null
+  node: ASTNode | null,
 ): "contract" | "interface" | "library" | "abstract" {
   if (!node) return "contract";
   const kind = (node as unknown as Record<string, string>).kind;

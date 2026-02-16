@@ -1,6 +1,6 @@
 /**
  * @module diffEngine
- * @description Comprehensive contract diffing engine for ChainLens 2.0.
+ * @description Comprehensive contract diffing engine for ChainLens.
  *
  * Three-level diffing strategy:
  * 1. Text Diff — line-by-line comparison for raw source changes
@@ -42,11 +42,19 @@ interface CacheEntry {
 const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const diffCache = new Map<string, CacheEntry>();
 
-function getCacheKey(addressA: string, addressB: string, network: string): string {
+function getCacheKey(
+  addressA: string,
+  addressB: string,
+  network: string,
+): string {
   return `${addressA.toLowerCase()}-${addressB.toLowerCase()}-${network}`;
 }
 
-function getCachedDiff(addressA: string, addressB: string, network: string): ContractDiff | null {
+function getCachedDiff(
+  addressA: string,
+  addressB: string,
+  network: string,
+): ContractDiff | null {
   const key = getCacheKey(addressA, addressB, network);
   const entry = diffCache.get(key);
   if (!entry) return null;
@@ -57,7 +65,12 @@ function getCachedDiff(addressA: string, addressB: string, network: string): Con
   return entry.diff;
 }
 
-function cacheDiff(addressA: string, addressB: string, network: string, diff: ContractDiff): void {
+function cacheDiff(
+  addressA: string,
+  addressB: string,
+  network: string,
+  diff: ContractDiff,
+): void {
   const key = getCacheKey(addressA, addressB, network);
   diffCache.set(key, { diff, timestamp: Date.now() });
 }
@@ -77,7 +90,10 @@ export interface TextDiffLine {
  * Simple LCS-based line diff for source code comparison.
  * Returns ordered diff lines with proper line number tracking.
  */
-export function computeTextDiff(sourceA: string, sourceB: string): TextDiffLine[] {
+export function computeTextDiff(
+  sourceA: string,
+  sourceB: string,
+): TextDiffLine[] {
   const linesA = sourceA.split("\n");
   const linesB = sourceB.split("\n");
 
@@ -90,7 +106,9 @@ export function computeTextDiff(sourceA: string, sourceB: string): TextDiffLine[
     return computeSimpleTextDiff(linesA, linesB);
   }
 
-  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    new Array(n + 1).fill(0),
+  );
 
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -109,7 +127,12 @@ export function computeTextDiff(sourceA: string, sourceB: string): TextDiffLine[
 
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && linesA[i - 1] === linesB[j - 1]) {
-      result.push({ type: "unchanged", content: linesA[i - 1], lineNumberA: i, lineNumberB: j });
+      result.push({
+        type: "unchanged",
+        content: linesA[i - 1],
+        lineNumberA: i,
+        lineNumberB: j,
+      });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
@@ -125,7 +148,10 @@ export function computeTextDiff(sourceA: string, sourceB: string): TextDiffLine[
 }
 
 /** Simple set-based diff for very large files where LCS would be too expensive */
-function computeSimpleTextDiff(linesA: string[], linesB: string[]): TextDiffLine[] {
+function computeSimpleTextDiff(
+  linesA: string[],
+  linesB: string[],
+): TextDiffLine[] {
   const setA = new Set(linesA);
   const setB = new Set(linesB);
   const result: TextDiffLine[] = [];
@@ -134,24 +160,49 @@ function computeSimpleTextDiff(linesA: string[], linesB: string[]): TextDiffLine
   let idxB = 0;
 
   while (idxA < linesA.length || idxB < linesB.length) {
-    if (idxA < linesA.length && idxB < linesB.length && linesA[idxA] === linesB[idxB]) {
-      result.push({ type: "unchanged", content: linesA[idxA], lineNumberA: idxA + 1, lineNumberB: idxB + 1 });
+    if (
+      idxA < linesA.length &&
+      idxB < linesB.length &&
+      linesA[idxA] === linesB[idxB]
+    ) {
+      result.push({
+        type: "unchanged",
+        content: linesA[idxA],
+        lineNumberA: idxA + 1,
+        lineNumberB: idxB + 1,
+      });
       idxA++;
       idxB++;
     } else if (idxA < linesA.length && !setB.has(linesA[idxA])) {
-      result.push({ type: "removed", content: linesA[idxA], lineNumberA: idxA + 1 });
+      result.push({
+        type: "removed",
+        content: linesA[idxA],
+        lineNumberA: idxA + 1,
+      });
       idxA++;
     } else if (idxB < linesB.length && !setA.has(linesB[idxB])) {
-      result.push({ type: "added", content: linesB[idxB], lineNumberB: idxB + 1 });
+      result.push({
+        type: "added",
+        content: linesB[idxB],
+        lineNumberB: idxB + 1,
+      });
       idxB++;
     } else {
       // Both lines exist in the other file but not at same position — treat as modified
       if (idxA < linesA.length) {
-        result.push({ type: "removed", content: linesA[idxA], lineNumberA: idxA + 1 });
+        result.push({
+          type: "removed",
+          content: linesA[idxA],
+          lineNumberA: idxA + 1,
+        });
         idxA++;
       }
       if (idxB < linesB.length) {
-        result.push({ type: "added", content: linesB[idxB], lineNumberB: idxB + 1 });
+        result.push({
+          type: "added",
+          content: linesB[idxB],
+          lineNumberB: idxB + 1,
+        });
         idxB++;
       }
     }
@@ -168,15 +219,25 @@ function computeSimpleTextDiff(linesA: string[], linesB: string[]): TextDiffLine
  * Compare two contracts at the AST level using the rich parseContract() output.
  * Returns categorized changes with breaking/non-breaking impact.
  */
-function computeASTDiff(parsedA: ParsedContract, parsedB: ParsedContract): DiffChange[] {
+function computeASTDiff(
+  parsedA: ParsedContract,
+  parsedB: ParsedContract,
+): DiffChange[] {
   const changes: DiffChange[] = [];
 
   changes.push(...compareFunctions(parsedA.functions, parsedB.functions));
   changes.push(...compareEvents(parsedA.events, parsedB.events));
-  changes.push(...compareStateVariables(parsedA.stateVariables, parsedB.stateVariables));
+  changes.push(
+    ...compareStateVariables(parsedA.stateVariables, parsedB.stateVariables),
+  );
   changes.push(...compareModifiers(parsedA.modifiers, parsedB.modifiers));
   changes.push(...compareImports(parsedA.imports, parsedB.imports));
-  changes.push(...compareInheritance(parsedA.inheritedContracts, parsedB.inheritedContracts));
+  changes.push(
+    ...compareInheritance(
+      parsedA.inheritedContracts,
+      parsedB.inheritedContracts,
+    ),
+  );
 
   return changes;
 }
@@ -185,14 +246,21 @@ function computeASTDiff(parsedA: ParsedContract, parsedB: ParsedContract): DiffC
 
 function functionSignature(fn: FunctionNode): string {
   const params = fn.parameters.map((p) => `${p.type} ${p.name}`).join(", ");
-  const returns = fn.returns.length > 0
-    ? ` returns (${fn.returns.map((r) => `${r.type} ${r.name || ""}`).join(", ").trim()})`
-    : "";
+  const returns =
+    fn.returns.length > 0
+      ? ` returns (${fn.returns
+          .map((r) => `${r.type} ${r.name || ""}`)
+          .join(", ")
+          .trim()})`
+      : "";
   const mods = fn.modifiers.length > 0 ? ` ${fn.modifiers.join(" ")}` : "";
   return `function ${fn.name}(${params}) ${fn.visibility} ${fn.stateMutability}${mods}${returns}`;
 }
 
-function compareFunctions(funcsA: FunctionNode[], funcsB: FunctionNode[]): DiffChange[] {
+function compareFunctions(
+  funcsA: FunctionNode[],
+  funcsB: FunctionNode[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const lookupA: Record<string, FunctionNode> = {};
   const lookupB: Record<string, FunctionNode> = {};
@@ -216,7 +284,8 @@ function compareFunctions(funcsA: FunctionNode[], funcsB: FunctionNode[]): DiffC
   // Removed
   for (const fn of funcsA) {
     if (!lookupB[fn.name]) {
-      const isPublic = fn.visibility === "public" || fn.visibility === "external";
+      const isPublic =
+        fn.visibility === "public" || fn.visibility === "external";
       changes.push({
         type: "removed",
         category: "function",
@@ -240,21 +309,37 @@ function compareFunctions(funcsA: FunctionNode[], funcsB: FunctionNode[]): DiffC
     const sigB = functionSignature(fnB);
     if (sigA === sigB) continue;
 
-    const paramsChanged = JSON.stringify(fnA.parameters) !== JSON.stringify(fnB.parameters);
-    const returnsChanged = JSON.stringify(fnA.returns) !== JSON.stringify(fnB.returns);
+    const paramsChanged =
+      JSON.stringify(fnA.parameters) !== JSON.stringify(fnB.parameters);
+    const returnsChanged =
+      JSON.stringify(fnA.returns) !== JSON.stringify(fnB.returns);
     const visibilityChanged = fnA.visibility !== fnB.visibility;
     const mutabilityChanged = fnA.stateMutability !== fnB.stateMutability;
-    const modifiersChanged = JSON.stringify(fnA.modifiers.sort()) !== JSON.stringify(fnB.modifiers.sort());
+    const modifiersChanged =
+      JSON.stringify(fnA.modifiers.sort()) !==
+      JSON.stringify(fnB.modifiers.sort());
 
-    const isPublic = fnA.visibility === "public" || fnA.visibility === "external" ||
-                     fnB.visibility === "public" || fnB.visibility === "external";
-    const isBreaking = isPublic && (paramsChanged || returnsChanged || visibilityChanged || mutabilityChanged);
+    const isPublic =
+      fnA.visibility === "public" ||
+      fnA.visibility === "external" ||
+      fnB.visibility === "public" ||
+      fnB.visibility === "external";
+    const isBreaking =
+      isPublic &&
+      (paramsChanged ||
+        returnsChanged ||
+        visibilityChanged ||
+        mutabilityChanged);
 
     const reasons: string[] = [];
     if (paramsChanged) reasons.push("parameters changed");
     if (returnsChanged) reasons.push("return type changed");
-    if (visibilityChanged) reasons.push(`visibility: ${fnA.visibility} → ${fnB.visibility}`);
-    if (mutabilityChanged) reasons.push(`mutability: ${fnA.stateMutability} → ${fnB.stateMutability}`);
+    if (visibilityChanged)
+      reasons.push(`visibility: ${fnA.visibility} → ${fnB.visibility}`);
+    if (mutabilityChanged)
+      reasons.push(
+        `mutability: ${fnA.stateMutability} → ${fnB.stateMutability}`,
+      );
     if (modifiersChanged) reasons.push("modifiers changed");
 
     changes.push({
@@ -277,11 +362,16 @@ function compareFunctions(funcsA: FunctionNode[], funcsB: FunctionNode[]): DiffC
 // --- Event comparison ---
 
 function eventSignature(ev: EventNode): string {
-  const params = ev.parameters.map((p) => `${p.type}${p.indexed ? " indexed" : ""} ${p.name}`).join(", ");
+  const params = ev.parameters
+    .map((p) => `${p.type}${p.indexed ? " indexed" : ""} ${p.name}`)
+    .join(", ");
   return `event ${ev.name}(${params})`;
 }
 
-function compareEvents(eventsA: EventNode[], eventsB: EventNode[]): DiffChange[] {
+function compareEvents(
+  eventsA: EventNode[],
+  eventsB: EventNode[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const lookupA: Record<string, EventNode> = {};
   const lookupB: Record<string, EventNode> = {};
@@ -310,7 +400,8 @@ function compareEvents(eventsA: EventNode[], eventsB: EventNode[]): DiffChange[]
         before: eventSignature(ev),
         description: `Event removed: ${ev.name}`,
         impact: "breaking",
-        explanation: "Removing an event breaks off-chain indexers and listeners that depend on it.",
+        explanation:
+          "Removing an event breaks off-chain indexers and listeners that depend on it.",
       });
     }
   }
@@ -329,7 +420,8 @@ function compareEvents(eventsA: EventNode[], eventsB: EventNode[]): DiffChange[]
         after: sigB,
         description: `Event signature changed: ${evA.name}`,
         impact: "breaking",
-        explanation: "Changing event parameters breaks off-chain indexers that decode these events.",
+        explanation:
+          "Changing event parameters breaks off-chain indexers that decode these events.",
       });
     }
   }
@@ -346,7 +438,10 @@ function varSignature(v: StateVariableNode): string {
   return parts.join(" ");
 }
 
-function compareStateVariables(varsA: StateVariableNode[], varsB: StateVariableNode[]): DiffChange[] {
+function compareStateVariables(
+  varsA: StateVariableNode[],
+  varsB: StateVariableNode[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const lookupA: Record<string, StateVariableNode> = {};
   const lookupB: Record<string, StateVariableNode> = {};
@@ -389,7 +484,8 @@ function compareStateVariables(varsA: StateVariableNode[], varsB: StateVariableN
     if (vA.type !== vB.type || vA.visibility !== vB.visibility) {
       const reasons: string[] = [];
       if (vA.type !== vB.type) reasons.push(`type: ${vA.type} → ${vB.type}`);
-      if (vA.visibility !== vB.visibility) reasons.push(`visibility: ${vA.visibility} → ${vB.visibility}`);
+      if (vA.visibility !== vB.visibility)
+        reasons.push(`visibility: ${vA.visibility} → ${vB.visibility}`);
 
       const isPublic = vA.visibility === "public" || vB.visibility === "public";
       changes.push({
@@ -398,11 +494,14 @@ function compareStateVariables(varsA: StateVariableNode[], varsB: StateVariableN
         name: vA.name,
         before: varSignature(vA),
         after: varSignature(vB),
-        description: `State variable changed: ${vA.name} (${reasons.join(", ")})`,
-        impact: (vA.type !== vB.type || isPublic) ? "breaking" : "non-breaking",
-        explanation: vA.type !== vB.type
-          ? "Changing a state variable's type can break storage layout and ABI compatibility."
-          : undefined,
+        description: `State variable changed: ${vA.name} (${reasons.join(
+          ", ",
+        )})`,
+        impact: vA.type !== vB.type || isPublic ? "breaking" : "non-breaking",
+        explanation:
+          vA.type !== vB.type
+            ? "Changing a state variable's type can break storage layout and ABI compatibility."
+            : undefined,
       });
     }
   }
@@ -417,7 +516,10 @@ function modSignature(mod: ModifierNode): string {
   return `modifier ${mod.name}(${params})`;
 }
 
-function compareModifiers(modsA: ModifierNode[], modsB: ModifierNode[]): DiffChange[] {
+function compareModifiers(
+  modsA: ModifierNode[],
+  modsB: ModifierNode[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const lookupA: Record<string, ModifierNode> = {};
   const lookupB: Record<string, ModifierNode> = {};
@@ -446,7 +548,8 @@ function compareModifiers(modsA: ModifierNode[], modsB: ModifierNode[]): DiffCha
         before: modSignature(mod),
         description: `Modifier removed: ${mod.name}`,
         impact: "non-breaking",
-        explanation: "Modifier removal may weaken access control or validation if used by functions.",
+        explanation:
+          "Modifier removal may weaken access control or validation if used by functions.",
       });
     }
   }
@@ -474,7 +577,10 @@ function compareModifiers(modsA: ModifierNode[], modsB: ModifierNode[]): DiffCha
 
 // --- Import comparison ---
 
-function compareImports(importsA: ImportInfo[], importsB: ImportInfo[]): DiffChange[] {
+function compareImports(
+  importsA: ImportInfo[],
+  importsB: ImportInfo[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const pathsA = new Set(importsA.map((i) => i.path));
   const pathsB = new Set(importsB.map((i) => i.path));
@@ -485,7 +591,9 @@ function compareImports(importsA: ImportInfo[], importsB: ImportInfo[]): DiffCha
         type: "added",
         category: "import",
         name: imp.path,
-        after: `import ${imp.symbols.length > 0 ? `{${imp.symbols.join(", ")}}` : "*"} from "${imp.path}"`,
+        after: `import ${
+          imp.symbols.length > 0 ? `{${imp.symbols.join(", ")}}` : "*"
+        } from "${imp.path}"`,
         description: `New import: ${imp.path}`,
         impact: "non-breaking",
       });
@@ -498,7 +606,9 @@ function compareImports(importsA: ImportInfo[], importsB: ImportInfo[]): DiffCha
         type: "removed",
         category: "import",
         name: imp.path,
-        before: `import ${imp.symbols.length > 0 ? `{${imp.symbols.join(", ")}}` : "*"} from "${imp.path}"`,
+        before: `import ${
+          imp.symbols.length > 0 ? `{${imp.symbols.join(", ")}}` : "*"
+        } from "${imp.path}"`,
         description: `Import removed: ${imp.path}`,
         impact: "non-breaking",
       });
@@ -510,7 +620,10 @@ function compareImports(importsA: ImportInfo[], importsB: ImportInfo[]): DiffCha
 
 // --- Inheritance comparison ---
 
-function compareInheritance(inheritA: string[], inheritB: string[]): DiffChange[] {
+function compareInheritance(
+  inheritA: string[],
+  inheritB: string[],
+): DiffChange[] {
   const changes: DiffChange[] = [];
   const setA = new Set(inheritA);
   const setB = new Set(inheritB);
@@ -537,7 +650,8 @@ function compareInheritance(inheritA: string[], inheritB: string[]): DiffChange[
         before: `is ${name}`,
         description: `Base contract removed: ${name}`,
         impact: "breaking",
-        explanation: "Removing an inherited contract may remove functions, events, and modifiers that callers depend on.",
+        explanation:
+          "Removing an inherited contract may remove functions, events, and modifiers that callers depend on.",
       });
     }
   }
@@ -549,7 +663,10 @@ function compareInheritance(inheritA: string[], inheritB: string[]): DiffChange[
 //            STATISTICS CALCULATION
 // ============================================================
 
-function calculateStats(changes: DiffChange[], textDiff: TextDiffLine[]): DiffStats {
+function calculateStats(
+  changes: DiffChange[],
+  textDiff: TextDiffLine[],
+): DiffStats {
   const linesAdded = textDiff.filter((l) => l.type === "added").length;
   const linesRemoved = textDiff.filter((l) => l.type === "removed").length;
   // Estimate modified lines as overlapping adds/removes
@@ -598,7 +715,7 @@ function detectBreakingChanges(changes: DiffChange[]): BreakingChangeDetail[] {
 function analyzeSecurityImpacts(
   changes: DiffChange[],
   parsedA: ParsedContract,
-  parsedB: ParsedContract
+  parsedB: ParsedContract,
 ): SecurityImpact[] {
   const impacts: SecurityImpact[] = [];
 
@@ -610,13 +727,20 @@ function analyzeSecurityImpacts(
   if (removedModifiers.length > 0) {
     // Check if any functions in A used these modifiers
     for (const mod of removedModifiers) {
-      const usingFunctions = parsedA.functions.filter((f) => f.modifiers.includes(mod));
+      const usingFunctions = parsedA.functions.filter((f) =>
+        f.modifiers.includes(mod),
+      );
       if (usingFunctions.length > 0) {
         impacts.push({
           change: `Modifier "${mod}" removed`,
-          impact: `${usingFunctions.length} function(s) used this modifier: ${usingFunctions.map((f) => f.name).join(", ")}. Access control may be weakened.`,
+          impact: `${
+            usingFunctions.length
+          } function(s) used this modifier: ${usingFunctions
+            .map((f) => f.name)
+            .join(", ")}. Access control may be weakened.`,
           severity: "high",
-          recommendation: "Verify that equivalent access control is maintained through other means.",
+          recommendation:
+            "Verify that equivalent access control is maintained through other means.",
         });
       }
     }
@@ -624,15 +748,22 @@ function analyzeSecurityImpacts(
 
   // Check for visibility relaxation (private/internal → public/external)
   for (const change of changes) {
-    if (change.category === "function" && change.type === "modified" && change.before && change.after) {
+    if (
+      change.category === "function" &&
+      change.type === "modified" &&
+      change.before &&
+      change.after
+    ) {
       const beforeVis = extractVisibility(change.before);
       const afterVis = extractVisibility(change.after);
       if (isVisibilityRelaxed(beforeVis, afterVis)) {
         impacts.push({
           change: `Function "${change.name}" visibility relaxed: ${beforeVis} → ${afterVis}`,
-          impact: "Function is now callable by external parties, increasing attack surface.",
+          impact:
+            "Function is now callable by external parties, increasing attack surface.",
           severity: "medium",
-          recommendation: "Ensure proper access control modifiers are in place.",
+          recommendation:
+            "Ensure proper access control modifiers are in place.",
         });
       }
     }
@@ -643,14 +774,20 @@ function analyzeSecurityImpacts(
     const fnA = parsedA.functions.find((f) => f.name === fnB.name);
     if (fnA && fnB.externalCalls.length > fnA.externalCalls.length) {
       const newCalls = fnB.externalCalls.filter(
-        (c) => !fnA.externalCalls.some((ac) => ac.contract === c.contract && ac.function === c.function)
+        (c) =>
+          !fnA.externalCalls.some(
+            (ac) => ac.contract === c.contract && ac.function === c.function,
+          ),
       );
       if (newCalls.length > 0) {
         impacts.push({
           change: `Function "${fnB.name}" has ${newCalls.length} new external call(s)`,
-          impact: `New external calls to: ${newCalls.map((c) => `${c.contract}.${c.function}`).join(", ")}. May introduce reentrancy or trust assumptions.`,
+          impact: `New external calls to: ${newCalls
+            .map((c) => `${c.contract}.${c.function}`)
+            .join(", ")}. May introduce reentrancy or trust assumptions.`,
           severity: "medium",
-          recommendation: "Review external call ordering and consider reentrancy guards.",
+          recommendation:
+            "Review external call ordering and consider reentrancy guards.",
         });
       }
     }
@@ -658,25 +795,39 @@ function analyzeSecurityImpacts(
 
   // Check for mutability changes (view/pure → nonpayable/payable)
   for (const change of changes) {
-    if (change.category === "function" && change.type === "modified" && change.before && change.after) {
+    if (
+      change.category === "function" &&
+      change.type === "modified" &&
+      change.before &&
+      change.after
+    ) {
       const beforeMut = extractMutability(change.before);
       const afterMut = extractMutability(change.after);
-      if ((beforeMut === "view" || beforeMut === "pure") && (afterMut === "nonpayable" || afterMut === "payable")) {
+      if (
+        (beforeMut === "view" || beforeMut === "pure") &&
+        (afterMut === "nonpayable" || afterMut === "payable")
+      ) {
         impacts.push({
           change: `Function "${change.name}" mutability changed: ${beforeMut} → ${afterMut}`,
-          impact: "Function can now modify state or accept ETH, changing its trust model.",
+          impact:
+            "Function can now modify state or accept ETH, changing its trust model.",
           severity: afterMut === "payable" ? "high" : "medium",
-          recommendation: "Review all callers and ensure the state changes are intentional.",
+          recommendation:
+            "Review all callers and ensure the state changes are intentional.",
         });
       }
     }
   }
 
   // Check for removed events (affects monitoring/auditing)
-  const removedEvents = changes.filter((c) => c.category === "event" && c.type === "removed");
+  const removedEvents = changes.filter(
+    (c) => c.category === "event" && c.type === "removed",
+  );
   if (removedEvents.length > 0) {
     impacts.push({
-      change: `${removedEvents.length} event(s) removed: ${removedEvents.map((c) => c.name).join(", ")}`,
+      change: `${removedEvents.length} event(s) removed: ${removedEvents
+        .map((c) => c.name)
+        .join(", ")}`,
       impact: "Off-chain monitoring and audit trails may be disrupted.",
       severity: "low",
       recommendation: "Ensure alternative monitoring mechanisms are in place.",
@@ -697,7 +848,12 @@ function extractMutability(sig: string): string {
 }
 
 function isVisibilityRelaxed(before: string, after: string): boolean {
-  const order: Record<string, number> = { private: 0, internal: 1, external: 2, public: 3 };
+  const order: Record<string, number> = {
+    private: 0,
+    internal: 1,
+    external: 2,
+    public: 3,
+  };
   return (order[after] ?? 0) > (order[before] ?? 0);
 }
 
@@ -728,20 +884,27 @@ function buildDiffPrompt(
   contractA: ContractVersion,
   contractB: ContractVersion,
   changes: DiffChange[],
-  securityImpacts: SecurityImpact[]
+  securityImpacts: SecurityImpact[],
 ): string {
-  const changesText = changes.map((c) => {
-    let text = `[${c.type.toUpperCase()}] ${c.category}: ${c.name}`;
-    if (c.before) text += `\n  Before: ${c.before}`;
-    if (c.after) text += `\n  After:  ${c.after}`;
-    text += `\n  Impact: ${c.impact}`;
-    if (c.explanation) text += `\n  Note: ${c.explanation}`;
-    return text;
-  }).join("\n\n");
+  const changesText = changes
+    .map((c) => {
+      let text = `[${c.type.toUpperCase()}] ${c.category}: ${c.name}`;
+      if (c.before) text += `\n  Before: ${c.before}`;
+      if (c.after) text += `\n  After:  ${c.after}`;
+      text += `\n  Impact: ${c.impact}`;
+      if (c.explanation) text += `\n  Note: ${c.explanation}`;
+      return text;
+    })
+    .join("\n\n");
 
-  const securityText = securityImpacts.length > 0
-    ? securityImpacts.map((s) => `- [${s.severity.toUpperCase()}] ${s.change}: ${s.impact}`).join("\n")
-    : "No rule-based security impacts detected.";
+  const securityText =
+    securityImpacts.length > 0
+      ? securityImpacts
+          .map(
+            (s) => `- [${s.severity.toUpperCase()}] ${s.change}: ${s.impact}`,
+          )
+          .join("\n")
+      : "No rule-based security impacts detected.";
 
   return `Compare these two contract versions:
 
@@ -779,12 +942,17 @@ export async function performSemanticAnalysis(
   contractB: ContractVersion,
   changes: DiffChange[],
   securityImpacts: SecurityImpact[],
-  apiKey: string
+  apiKey: string,
 ): Promise<DiffAIAnalysis> {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   const client = new Anthropic({ apiKey });
 
-  const userPrompt = buildDiffPrompt(contractA, contractB, changes, securityImpacts);
+  const userPrompt = buildDiffPrompt(
+    contractA,
+    contractB,
+    changes,
+    securityImpacts,
+  );
 
   try {
     const message = await client.messages.create({
@@ -800,14 +968,21 @@ export async function performSemanticAnalysis(
       .join("");
 
     // Extract JSON from response (handle markdown code blocks)
-    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || [null, responseText];
+    const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/) || [
+      null,
+      responseText,
+    ];
     const jsonStr = (jsonMatch[1] || responseText).trim();
     const parsed = JSON.parse(jsonStr);
 
     return {
       summary: parsed.summary || "Analysis complete.",
-      breakingChanges: Array.isArray(parsed.breakingChanges) ? parsed.breakingChanges : [],
-      securityImpacts: Array.isArray(parsed.securityImpacts) ? parsed.securityImpacts : [],
+      breakingChanges: Array.isArray(parsed.breakingChanges)
+        ? parsed.breakingChanges
+        : [],
+      securityImpacts: Array.isArray(parsed.securityImpacts)
+        ? parsed.securityImpacts
+        : [],
       migrationGuide: parsed.migrationGuide || "",
       riskLevel: parsed.riskLevel || "low",
     };
@@ -820,26 +995,29 @@ export async function performSemanticAnalysis(
 
 function buildFallbackAnalysis(
   changes: DiffChange[],
-  securityImpacts: SecurityImpact[]
+  securityImpacts: SecurityImpact[],
 ): DiffAIAnalysis {
   const breakingChanges = detectBreakingChanges(changes);
   const riskLevel = securityImpacts.some((s) => s.severity === "critical")
-    ? "critical" as const
+    ? ("critical" as const)
     : securityImpacts.some((s) => s.severity === "high")
-    ? "high" as const
+    ? ("high" as const)
     : breakingChanges.length > 0
-    ? "medium" as const
+    ? ("medium" as const)
     : changes.length > 0
-    ? "low" as const
-    : "none" as const;
+    ? ("low" as const)
+    : ("none" as const);
 
   return {
     summary: `${changes.length} change(s) detected: ${breakingChanges.length} breaking. AI analysis unavailable — showing rule-based results.`,
     breakingChanges,
     securityImpacts,
-    migrationGuide: breakingChanges.length > 0
-      ? `Review the following breaking changes before upgrading:\n${breakingChanges.map((bc) => `- ${bc.category} "${bc.name}": ${bc.reason}`).join("\n")}`
-      : "No migration steps required.",
+    migrationGuide:
+      breakingChanges.length > 0
+        ? `Review the following breaking changes before upgrading:\n${breakingChanges
+            .map((bc) => `- ${bc.category} "${bc.name}": ${bc.reason}`)
+            .join("\n")}`
+        : "No migration steps required.",
     riskLevel,
   };
 }
@@ -851,7 +1029,10 @@ function buildFallbackAnalysis(
 /**
  * Build a DiffSummary from changes.
  */
-function buildSummary(changes: DiffChange[], aiSummary: string = ""): DiffSummary {
+function buildSummary(
+  changes: DiffChange[],
+  aiSummary: string = "",
+): DiffSummary {
   const added = changes.filter((c) => c.type === "added").length;
   const removed = changes.filter((c) => c.type === "removed").length;
   const modified = changes.filter((c) => c.type === "modified").length;
@@ -875,10 +1056,14 @@ function buildSummary(changes: DiffChange[], aiSummary: string = ""): DiffSummar
  */
 export function compareContracts(
   contractA: ContractVersion,
-  contractB: ContractVersion
+  contractB: ContractVersion,
 ): ContractDiff {
   // Check cache
-  const cached = getCachedDiff(contractA.address, contractB.address, contractA.network);
+  const cached = getCachedDiff(
+    contractA.address,
+    contractB.address,
+    contractA.network,
+  );
   if (cached) return cached;
 
   // Parse ASTs
@@ -930,7 +1115,7 @@ export function compareContracts(
 export async function compareContractsWithAI(
   contractA: ContractVersion,
   contractB: ContractVersion,
-  apiKey: string
+  apiKey: string,
 ): Promise<ContractDiff> {
   // Start with rule-based diff
   const diff = compareContracts(contractA, contractB);
@@ -950,7 +1135,11 @@ export async function compareContractsWithAI(
   }
 
   // Rule-based security analysis
-  const securityImpacts = analyzeSecurityImpacts(diff.changes, parsedA, parsedB);
+  const securityImpacts = analyzeSecurityImpacts(
+    diff.changes,
+    parsedA,
+    parsedB,
+  );
 
   // Level 3: AI semantic analysis
   const aiAnalysis = await performSemanticAnalysis(
@@ -958,15 +1147,21 @@ export async function compareContractsWithAI(
     contractB,
     diff.changes,
     securityImpacts,
-    apiKey
+    apiKey,
   );
 
   // Merge AI-detected breaking changes with rule-based ones
   const ruleBreaking = detectBreakingChanges(diff.changes);
-  const allBreaking = deduplicateBreakingChanges(ruleBreaking, aiAnalysis.breakingChanges);
+  const allBreaking = deduplicateBreakingChanges(
+    ruleBreaking,
+    aiAnalysis.breakingChanges,
+  );
 
   // Merge security impacts
-  const allSecurityImpacts = deduplicateSecurityImpacts(securityImpacts, aiAnalysis.securityImpacts);
+  const allSecurityImpacts = deduplicateSecurityImpacts(
+    securityImpacts,
+    aiAnalysis.securityImpacts,
+  );
 
   const enrichedDiff: ContractDiff = {
     ...diff,
@@ -983,7 +1178,12 @@ export async function compareContractsWithAI(
   };
 
   // Update cache with enriched result
-  cacheDiff(contractA.address, contractB.address, contractA.network, enrichedDiff);
+  cacheDiff(
+    contractA.address,
+    contractB.address,
+    contractA.network,
+    enrichedDiff,
+  );
 
   return enrichedDiff;
 }
@@ -1017,7 +1217,7 @@ function createEmptyParsedContract(name: string): ParsedContract {
 
 function deduplicateBreakingChanges(
   ruleChanges: BreakingChangeDetail[],
-  aiChanges: BreakingChangeDetail[]
+  aiChanges: BreakingChangeDetail[],
 ): BreakingChangeDetail[] {
   const seen = new Set(ruleChanges.map((c) => `${c.category}:${c.name}`));
   const merged = [...ruleChanges];
@@ -1033,7 +1233,7 @@ function deduplicateBreakingChanges(
 
 function deduplicateSecurityImpacts(
   ruleImpacts: SecurityImpact[],
-  aiImpacts: SecurityImpact[]
+  aiImpacts: SecurityImpact[],
 ): SecurityImpact[] {
   const seen = new Set(ruleImpacts.map((s) => s.change.toLowerCase()));
   const merged = [...ruleImpacts];

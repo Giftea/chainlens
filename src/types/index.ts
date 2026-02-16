@@ -1,5 +1,5 @@
 // ============================================================
-// ChainLens 2.0 - TypeScript Type Definitions
+// ChainLens - TypeScript Type Definitions
 // ============================================================
 
 // --- Contract Types ---
@@ -330,7 +330,13 @@ export interface ContractVersion {
 
 export interface DiffChange {
   type: "added" | "removed" | "modified";
-  category: "function" | "event" | "variable" | "modifier" | "import" | "inheritance";
+  category:
+    | "function"
+    | "event"
+    | "variable"
+    | "modifier"
+    | "import"
+    | "inheritance";
   name: string;
   before?: string;
   after?: string;

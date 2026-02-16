@@ -10,7 +10,7 @@ export default function Footer() {
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-primary" />
             <span className="text-sm text-muted-foreground">
-              ChainLens 2.0 — Built for BNB Chain Hackathon
+              ChainLens — Built for BNB Chain Hackathon
             </span>
           </div>
 

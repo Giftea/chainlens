@@ -1,6 +1,6 @@
 /**
  * @module abiAnalyzer
- * @description Comprehensive ABI analyzer for ChainLens 2.0 Interactive Playground.
+ * @description Comprehensive ABI analyzer for ChainLens Interactive Playground.
  *
  * Parses any valid Solidity ABI and produces rich metadata for:
  * - Auto-generating UI forms for contract interaction
@@ -10,7 +10,12 @@
  * - Example value generation for testing
  */
 
-import { AbiItem, AbiParameter, PlaygroundFunction, PlaygroundInput } from "@/types";
+import {
+  AbiItem,
+  AbiParameter,
+  PlaygroundFunction,
+  PlaygroundInput,
+} from "@/types";
 
 // ============================================================
 //                       TYPES
@@ -18,7 +23,14 @@ import { AbiItem, AbiParameter, PlaygroundFunction, PlaygroundInput } from "@/ty
 
 /** Validation rule for a parameter input */
 export interface ValidationRule {
-  type: "required" | "address" | "uint" | "int" | "bytes" | "maxLength" | "pattern";
+  type:
+    | "required"
+    | "address"
+    | "uint"
+    | "int"
+    | "bytes"
+    | "maxLength"
+    | "pattern";
   value?: string | number;
   message: string;
 }
@@ -31,7 +43,14 @@ export interface ParameterInfo {
   indexed?: boolean;
 
   /** UI input type to render */
-  inputType: "text" | "number" | "address" | "bool" | "array" | "bytes" | "tuple";
+  inputType:
+    | "text"
+    | "number"
+    | "address"
+    | "bool"
+    | "array"
+    | "bytes"
+    | "tuple";
   /** Placeholder text for the input */
   placeholder: string;
   /** Validation rules */
@@ -89,7 +108,14 @@ export interface AnalyzedABI {
 export interface FormField {
   name: string;
   label: string;
-  type: "text" | "number" | "address" | "checkbox" | "array" | "bytes" | "tuple";
+  type:
+    | "text"
+    | "number"
+    | "address"
+    | "checkbox"
+    | "array"
+    | "bytes"
+    | "tuple";
   placeholder: string;
   validation: ValidationRule[];
   required: boolean;
@@ -162,9 +188,15 @@ export function analyzeABIFull(abi: AbiItem[] | string): AnalyzedABI {
   }
 
   // Sort: read first, then write, then payable
-  const categoryOrder: Record<string, number> = { read: 0, write: 1, payable: 2 };
+  const categoryOrder: Record<string, number> = {
+    read: 0,
+    write: 1,
+    payable: 2,
+  };
   functions.sort(
-    (a, b) => categoryOrder[a.category] - categoryOrder[b.category] || a.name.localeCompare(b.name)
+    (a, b) =>
+      categoryOrder[a.category] - categoryOrder[b.category] ||
+      a.name.localeCompare(b.name),
   );
 
   return {
@@ -243,13 +275,17 @@ export function estimateGasForFunction(func: PlaygroundFunction): string {
 /** Validate a single input value (backward compat) */
 export function validateInput(
   type: string,
-  value: string
+  value: string,
 ): { valid: boolean; error?: string } {
-  if (!value && type !== "bool") return { valid: false, error: "Value is required" };
+  if (!value && type !== "bool")
+    return { valid: false, error: "Value is required" };
 
   if (type === "address") {
     if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
-      return { valid: false, error: "Invalid address format (must be 0x + 40 hex chars)" };
+      return {
+        valid: false,
+        error: "Invalid address format (must be 0x + 40 hex chars)",
+      };
     }
   }
 
@@ -277,7 +313,12 @@ export function validateInput(
       return { valid: false, error: "Bytes value must start with 0x" };
     }
     if (byteSize > 0 && value.length !== 2 + byteSize * 2) {
-      return { valid: false, error: `Must be exactly ${byteSize} bytes (${2 + byteSize * 2} hex chars)` };
+      return {
+        valid: false,
+        error: `Must be exactly ${byteSize} bytes (${
+          2 + byteSize * 2
+        } hex chars)`,
+      };
     }
   }
 
@@ -285,7 +326,10 @@ export function validateInput(
     try {
       const parsed = JSON.parse(value);
       if (!Array.isArray(parsed)) {
-        return { valid: false, error: "Must be a JSON array, e.g. [\"value1\", \"value2\"]" };
+        return {
+          valid: false,
+          error: 'Must be a JSON array, e.g. ["value1", "value2"]',
+        };
       }
     } catch {
       // Also accept comma-separated
@@ -310,12 +354,13 @@ export function generateFormFields(func: AnalyzedFunction): FormField[] {
   return func.inputs.map((input) => parameterToFormField(input, true));
 }
 
-function parameterToFormField(param: ParameterInfo, required: boolean): FormField {
+function parameterToFormField(
+  param: ParameterInfo,
+  required: boolean,
+): FormField {
   const field: FormField = {
     name: param.name || "unnamed",
-    label: param.name
-      ? `${param.name} (${param.type})`
-      : param.type,
+    label: param.name ? `${param.name} (${param.type})` : param.type,
     type: mapInputType(param.inputType),
     placeholder: param.placeholder,
     validation: param.validation,
@@ -331,7 +376,7 @@ function parameterToFormField(param: ParameterInfo, required: boolean): FormFiel
 }
 
 function mapInputType(
-  inputType: ParameterInfo["inputType"]
+  inputType: ParameterInfo["inputType"],
 ): FormField["type"] {
   switch (inputType) {
     case "bool":
@@ -350,7 +395,7 @@ function mapInputType(
  * Returns a record of parameter name → example value.
  */
 export function generateExampleInputs(
-  func: AnalyzedFunction
+  func: AnalyzedFunction,
 ): Record<string, string> {
   const examples: Record<string, string> = {};
   for (const input of func.inputs) {
@@ -417,7 +462,7 @@ export function getExampleValue(type: string): string {
  */
 export function validateAllInputs(
   func: AnalyzedFunction,
-  values: Record<string, string>
+  values: Record<string, string>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -453,7 +498,11 @@ export function validateAllInputs(
           }
           break;
         case "maxLength":
-          if (value && typeof rule.value === "number" && value.length > rule.value) {
+          if (
+            value &&
+            typeof rule.value === "number" &&
+            value.length > rule.value
+          ) {
             errors[input.name] = rule.message;
           }
           break;
@@ -486,20 +535,23 @@ function normalizeAbi(abi: AbiItem[] | string): AbiItem[] {
 function analyzeFunction(item: AbiItem): AnalyzedFunction {
   const inputs = (item.inputs || []).map((p) => analyzeParameter(p));
   const outputs = (item.outputs || []).map((p) => analyzeParameter(p));
-  const mutability = (item.stateMutability || "nonpayable") as AnalyzedFunction["stateMutability"];
+  const mutability = (item.stateMutability ||
+    "nonpayable") as AnalyzedFunction["stateMutability"];
   const isReadOnly = mutability === "view" || mutability === "pure";
   const requiresValue = mutability === "payable";
 
   const category: AnalyzedFunction["category"] = isReadOnly
     ? "read"
     : requiresValue
-      ? "payable"
-      : "write";
+    ? "payable"
+    : "write";
 
   // Complexity scoring
   const inputCount = inputs.length;
   const hasArrays = inputs.some((i) => i.type.endsWith("[]"));
-  const hasTuples = inputs.some((i) => i.type === "tuple" || i.inputType === "tuple");
+  const hasTuples = inputs.some(
+    (i) => i.type === "tuple" || i.inputType === "tuple",
+  );
   let complexity: AnalyzedFunction["complexity"] = "simple";
   if (inputCount >= 5 || hasArrays || hasTuples) complexity = "complex";
   else if (inputCount >= 3) complexity = "medium";
@@ -514,7 +566,11 @@ function analyzeFunction(item: AbiItem): AnalyzedFunction {
     const baseGas = 21000;
     const perInput = inputCount * 2000;
     const arrayPenalty = hasArrays ? 10000 : 0;
-    gasEstimate = `~${(baseGas + perInput + arrayPenalty).toLocaleString()} gas`;
+    gasEstimate = `~${(
+      baseGas +
+      perInput +
+      arrayPenalty
+    ).toLocaleString()} gas`;
   }
 
   return {
@@ -628,7 +684,9 @@ function buildValidationRules(type: string, name: string): ValidationRule[] {
       rules.push({
         type: "maxLength",
         value: 2 + size * 2,
-        message: `Must be exactly ${size} bytes (${2 + size * 2} hex chars including 0x)`,
+        message: `Must be exactly ${size} bytes (${
+          2 + size * 2
+        } hex chars including 0x)`,
       });
     }
   }
