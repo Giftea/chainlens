@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       // Fetch from all networks with deployed contracts
       const networksToFetch: NetworkType[] = [];
       for (const [net, addr] of Object.entries(CONTRACT_ADDRESSES)) {
-        if (addr) networksToFetch.push(net as NetworkType);
+        if (addr && ethers.isAddress(addr)) networksToFetch.push(net as NetworkType);
       }
 
       const results = await Promise.all(

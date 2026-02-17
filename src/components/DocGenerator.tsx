@@ -21,7 +21,7 @@ const REGISTRY_ABI = [
 /** Check all deployed registries for existing docs for this contract address */
 async function findExistingDocs(contractAddr: string): Promise<{ ipfsHash: string; contractName: string } | null> {
   const checks = Object.entries(CONTRACT_ADDRESSES)
-    .filter(([, addr]) => addr)
+    .filter(([, addr]) => addr && ethers.isAddress(addr))
     .map(async ([net, registryAddr]) => {
       try {
         const config = NETWORKS[net as NetworkType];
