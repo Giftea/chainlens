@@ -150,7 +150,11 @@ export function FunctionExecutor({
       if (func.isReadOnly) {
         // Read-only: use public RPC
         const config = getNetworkConfig(network);
-        const provider = new ethers.JsonRpcProvider(config.rpcUrl);
+        const provider = new ethers.JsonRpcProvider(
+          config.rpcUrl,
+          { name: config.name, chainId: config.chainId },
+          { staticNetwork: true }
+        );
         const contract = new ethers.Contract(address, abi, provider);
 
         const rawResult = await contract[func.name](...args);

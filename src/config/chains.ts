@@ -4,7 +4,7 @@ export const NETWORKS: Record<NetworkType, NetworkConfig> = {
   "bsc-mainnet": {
     name: "BNB Smart Chain",
     chainId: 56,
-    rpcUrl: process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org/",
+    rpcUrl: "https://bsc-rpc.publicnode.com",
     explorerUrl: "https://bscscan.com",
     explorerApiUrl: "https://api.bscscan.com/api",
     nativeCurrency: {
