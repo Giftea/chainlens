@@ -50,12 +50,7 @@ const config: HardhatUserConfig = {
     },
   },
   etherscan: {
-    apiKey: {
-      bsc: process.env.NEXT_PUBLIC_BSCSCAN_API_KEY || "",
-      bscTestnet: process.env.NEXT_PUBLIC_BSCSCAN_API_KEY || "",
-      opBNB: process.env.OPBNB_API_KEY || "",
-      opBNBTestnet: process.env.OPBNB_API_KEY || "",
-    },
+    apiKey: process.env.NEXT_PUBLIC_BSCSCAN_API_KEY || "",
     customChains: [
       {
         network: "opBNB",
