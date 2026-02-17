@@ -138,6 +138,7 @@ sequenceDiagram
 
 - **Node.js 18+** and npm
 - **MetaMask** browser extension (for playground write functions and on-chain publishing)
+- **Test Tokens** BNB Testnet faucet tokens ([faucet.bnbchain.org](https://www.bnbchain.org/en/testnet-faucet))
 - **API Keys:**
   - [Anthropic API key](https://console.anthropic.com/) — for Claude AI documentation generation
   - [BSCScan API key](https://bscscan.com/apis) — for fetching verified contract source code

@@ -47,7 +47,11 @@
 - Node.js 18+
 - npm or yarn
 - MetaMask browser extension
-- API keys (see below)
+- **Test Tokens** BNB Testnet faucet tokens ([faucet.bnbchain.org](https://www.bnbchain.org/en/testnet-faucet))
+- **API Keys:**
+  - [Anthropic API key](https://console.anthropic.com/) — for Claude AI documentation generation
+  - [BSCScan API key](https://bscscan.com/apis) — for fetching verified contract source code
+  - [Pinata JWT](https://app.pinata.cloud/) — for IPFS uploads (optional, only needed for publishing)
 
 ### Installation
 
@@ -72,10 +76,10 @@ cp .env.example .env
 | `ANTHROPIC_API_KEY` | Claude AI API key | Yes |
 | `NEXT_PUBLIC_BSCSCAN_API_KEY` | BSCScan API key | Yes |
 | `NEXT_PUBLIC_PINATA_JWT` | Pinata IPFS JWT token | For publishing |
-| `NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET` | DocRegistry address on BSC Mainnet | For on-chain features |
-| `NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET` | DocRegistry address on BSC Testnet | For on-chain features |
+| `NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET` | DocRegistry on BSC Mainnet (`0x94e7DAaeB4d28fF2e71912fd06818b41009de47e`) | For on-chain features |
+| `NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET` | DocRegistry on BSC Testnet (`0x94e7DAaeB4d28fF2e71912fd06818b41009de47e`) | For on-chain features |
 | `BSC_PRIVATE_KEY` | Deployer wallet private key | For contract deployment |
-| `BSC_RPC_URL` | Custom BSC RPC endpoint | No |
+| `BSC_RPC_URL` | BSC RPC url (`https://bsc-dataseed1.ninicoin.io/`) | BSC RPC endpoint |
 
 ### Development
 
