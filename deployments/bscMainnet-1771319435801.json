@@ -1,0 +1,14 @@
+{
+  "network": "bscMainnet",
+  "chainId": 56,
+  "contractAddress": "0x94e7DAaeB4d28fF2e71912fd06818b41009de47e",
+  "deployer": "0x6F82eC71D9D8b2419BeeD7f6B02a865d21c862c7",
+  "txHash": "0x675f148aa23693ea76a0943c2cc58692cb930466f7de72f2dc5737ca66b64201",
+  "blockNumber": null,
+  "timestamp": "2026-02-17T09:10:35.801Z",
+  "compiler": "0.8.24",
+  "optimizer": {
+    "enabled": true,
+    "runs": 200
+  }
+}
