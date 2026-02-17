@@ -158,6 +158,8 @@ cp .env.example .env
 | `NEXT_PUBLIC_PINATA_JWT` | Pinata IPFS JWT token | For publishing |
 | `NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET` | DocRegistry on BSC Mainnet (`0x94e7DAaeB4d28fF2e71912fd06818b41009de47e`) | For on-chain features |
 | `NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET` | DocRegistry on BSC Testnet (`0x94e7DAaeB4d28fF2e71912fd06818b41009de47e`) | For on-chain features |
+| `BSC_PRIVATE_KEY` | Your Metamask Wallet Private Key | For Deploying contract |
+| `BSC_RPC_URL` | BSC RPC url (`https://bsc-dataseed1.ninicoin.io/`) | BSC RPC endpoint |
 
 ### Install & Build
 
