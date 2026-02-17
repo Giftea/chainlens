@@ -1,0 +1,15 @@
+{
+  "projectName": "ChainLens",
+  "network": "BSC Mainnet",
+  "contracts": [
+    {
+      "name": "DocRegistry",
+      "address": "0x94e7DAaeB4d28fF2e71912fd06818b41009de47e",
+      "explorerLink": "https://bscscan.com/address/0x94e7DAaeB4d28fF2e71912fd06818b41009de47e",
+      "description": "On-chain documentation registry. Stores IPFS hashes, metadata, and versioning for AI-generated smart contract documentation."
+    }
+  ],
+  "frontendUrl": "https://chainlens-bcs.vercel.app/",
+  "backendApi": "",
+  "notes": "DocRegistry has zero publish fee. Anyone can call publishDocumentation() to register documentation for any verified BSC contract. The contract is verified on Sourcify."
+}
