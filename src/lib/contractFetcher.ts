@@ -102,6 +102,7 @@ interface ExplorerConfig {
   chainId: number;
   apiKeyEnv: string;
   name: string;
+  explorerUrl: string;
 }
 
 /**
@@ -117,16 +118,19 @@ const EXPLORER_CONFIG: Record<number, ExplorerConfig> = {
     chainId: 56,
     apiKeyEnv: "NEXT_PUBLIC_BSCSCAN_API_KEY",
     name: "BSCScan",
+    explorerUrl: "https://bscscan.com",
   },
   97: {
     chainId: 97,
     apiKeyEnv: "NEXT_PUBLIC_BSCSCAN_API_KEY",
     name: "BSCScan Testnet",
+    explorerUrl: "https://testnet.bscscan.com",
   },
   204: {
     chainId: 204,
     apiKeyEnv: "NEXT_PUBLIC_BSCSCAN_API_KEY",
     name: "opBNB BSCScan",
+    explorerUrl: "https://opbnb.bscscan.com",
   },
 };
 
@@ -483,7 +487,7 @@ export async function fetchContractSource(
   ) {
     throw new ContractFetchError(
       `Contract ${address} is not verified on ${explorer.name}. ` +
-        `Verify at: https://bscscan.com/verifyContract`,
+        `Verify at: ${explorer.explorerUrl}/verifyContract`,
       "NOT_VERIFIED",
       chainId
     );
