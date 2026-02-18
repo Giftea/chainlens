@@ -870,9 +870,8 @@ export function generateDocumentationStream(
         const client = new Anthropic({ apiKey });
         let fullText = "";
 
-        // Use Haiku for streaming — much faster, fits within Vercel's 60s timeout
         const stream = client.messages.stream({
-          model: "claude-haiku-4-5-20251001",
+          model: "claude-sonnet-4-5-20250929",
           max_tokens: 16384,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: userPrompt }],

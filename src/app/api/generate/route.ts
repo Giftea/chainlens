@@ -7,8 +7,8 @@ import {
 import { getNetworkConfig } from "@/config/chains";
 import { NetworkType } from "@/types";
 
-// Allow up to 60s for AI documentation generation
-export const maxDuration = 60;
+// Edge Runtime: streaming responses stay alive as long as data is being sent
+export const runtime = "edge";
 
 /**
  * POST /api/generate
