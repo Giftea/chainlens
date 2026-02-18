@@ -135,9 +135,6 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
               }
               setProgress({ stage: "complete", percent: 100, message: "Loaded existing documentation!" });
               setFoundExisting(true);
-              toast.success("Documentation loaded from IPFS!", {
-                description: `${existing.contractName} — previously generated docs found on-chain`,
-              });
               onDocGenerated({
                 documentation: bundle.documentation,
                 generatedDocumentation: bundle.generatedDocumentation,

@@ -7,6 +7,9 @@ import {
 import { getNetworkConfig } from "@/config/chains";
 import { NetworkType } from "@/types";
 
+// Allow up to 60s for AI documentation generation
+export const maxDuration = 60;
+
 /**
  * POST /api/generate
  *

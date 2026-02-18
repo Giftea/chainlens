@@ -3,6 +3,9 @@ import { fetchContractByNetwork } from "@/lib/contractFetcher";
 import { compareContracts, compareContractsWithAI } from "@/lib/diffEngine";
 import { NetworkType } from "@/types";
 
+// Allow up to 60s for AI-powered diff analysis
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

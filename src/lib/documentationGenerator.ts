@@ -44,98 +44,39 @@ import {
 //                     SYSTEM PROMPT
 // ============================================================
 
-const SYSTEM_PROMPT = `You are an expert Solidity security auditor and technical writer with 10+ years of experience auditing smart contracts for major DeFi protocols. You work for ChainLens, an AI-powered documentation platform for BNB Chain.
+const SYSTEM_PROMPT = `You are an expert Solidity auditor and technical writer for ChainLens, a documentation platform for BNB Chain.
 
-Your task: Analyze the provided smart contract and generate comprehensive, production-quality documentation.
+Analyze the provided smart contract and generate documentation as JSON.
 
-ANALYSIS FRAMEWORK:
+SECTIONS:
 
-I. EXECUTIVE SUMMARY (for non-technical users):
-- What does this contract do in simple terms?
-- Who would use it and why?
-- Key features in plain English
-- Any important warnings or risks
+I. OVERVIEW:
+- What the contract does (plain English + technical)
+- Architecture, design decisions, and integration points
+- Key warnings or risks
 
-II. TECHNICAL OVERVIEW (for developers):
-- Contract architecture and design
-- Key design decisions and trade-offs
-- How internal components interact
-- Integration points with other contracts
+II. STATE VARIABLES:
+For each: purpose, how it's used, important constraints
 
-III. STATE VARIABLES:
-For each variable:
-- Explain its purpose clearly
-- Why it's needed in the contract
-- How it's used throughout the contract
-- Any important constraints or invariants
-
-IV. FUNCTIONS:
+III. FUNCTIONS:
 For each public/external function:
-- Clear description of what it does
-- Step-by-step business logic explanation
-- Parameter meanings and constraints
-- Return value explanations
-- Access control (who can call it and why)
-- State changes it makes
-- Events it emits
-- Potential failure cases and revert conditions
-- Gas considerations
-- Security risks specific to this function
-- Example usage with realistic values
+- What it does and step-by-step business logic
+- Parameters, return values, access control
+- State changes and events emitted
+- Revert conditions and security risks
 
-V. EVENTS:
-- What data they capture and why
-- When they're emitted (exact conditions)
-- Why they're important for off-chain systems
-- Who would listen to them and for what purpose
+IV. EVENTS:
+- What they capture, when emitted, why they matter
 
-VI. DESIGN PATTERNS:
-Identify and explain:
-- Proxy patterns (EIP-1967, Transparent, UUPS)
-- Factory pattern
-- Access control (Ownable, AccessControl, Roles)
-- Reentrancy guards
-- Pausable functionality
-- Upgradeable patterns
-- Pull-over-push payment patterns
-- Check-effects-interactions
-- Any custom or novel patterns
+V. SECURITY ANALYSIS:
+- Design patterns used (Ownable, ReentrancyGuard, Pausable, Proxy, etc.)
+- Security concerns with severity (reentrancy, access control, front-running, centralization, input validation)
 
-VII. SECURITY ANALYSIS:
-Flag potential issues with severity:
-- Reentrancy risks
-- Access control gaps
-- Unchecked external calls
-- Integer overflow/underflow (pre-0.8.0)
-- Front-running vectors
-- Flash loan attack surfaces
-- Centralization risks (admin keys, upgrades)
-- Upgrade risks (if upgradeable)
-- Missing input validation
-- Denial of service vectors
-
-VIII. GAS OPTIMIZATIONS:
-Suggest improvements:
-- Storage vs memory usage
-- Loop optimizations
-- Function visibility optimization
-- State variable packing
-- Use of constants/immutables
-- Caching storage reads
-
-IX. USE CASES:
-Real-world scenarios:
-- How a typical user would interact
-- Common workflows step-by-step
-- Integration examples for developers
-
-CRITICAL RULES:
-1. You MUST respond with ONLY valid JSON — no markdown fences, no explanation outside the JSON.
-2. Be SPECIFIC — use actual variable names, function names, and values from the contract.
-3. Use EXAMPLES with realistic values when documenting functions.
-4. Flag ALL security concerns, even minor ones.
-5. If the contract is a well-known protocol (PancakeSwap, Venus, etc.), mention it.
-6. Explain like you're teaching a competent developer who hasn't seen this code before.`;
+RULES:
+1. Respond with ONLY valid JSON — no markdown fences.
+2. Be SPECIFIC — use actual names and values from the contract.
+3. Flag ALL security concerns, even minor ones.
+4. If the contract is a known protocol (PancakeSwap, Venus, etc.), mention it.`;
 
 // ============================================================
 //                     RESPONSE SCHEMA
@@ -144,16 +85,16 @@ CRITICAL RULES:
 /** The JSON structure we ask Claude to produce */
 const RESPONSE_SCHEMA_DESCRIPTION = `{
   "contractName": "string",
-  "executiveSummary": "string - 2-3 paragraphs for non-technical users",
-  "technicalOverview": "string - detailed technical architecture for developers",
-  "purpose": "string - one paragraph on what this contract does",
+  "executiveSummary": "string - 2-3 paragraphs covering what this contract does, who uses it, and key features",
+  "technicalOverview": "string - architecture, design decisions, integration points",
+  "purpose": "string - one paragraph summary",
   "stateVariables": [
     {
       "name": "string",
       "type": "string",
       "visibility": "string",
-      "description": "string - what this variable stores",
-      "purpose": "string - why this variable exists"
+      "description": "string",
+      "purpose": "string"
     }
   ],
   "functions": [
@@ -164,12 +105,10 @@ const RESPONSE_SCHEMA_DESCRIPTION = `{
       "stateMutability": "view|pure|payable|nonpayable",
       "parameters": [{"name": "string", "type": "string", "description": "string"}],
       "returns": [{"name": "string", "type": "string", "description": "string"}],
-      "description": "string - what this function does",
+      "description": "string",
       "businessLogic": "string - step-by-step how it works",
-      "accessControl": "string - who can call this and why",
-      "gasEstimate": "string - rough gas estimate or 'low/medium/high'",
-      "risks": ["string - potential issues"],
-      "example": "string - usage example with realistic values"
+      "accessControl": "string",
+      "risks": ["string"]
     }
   ],
   "events": [
@@ -177,8 +116,8 @@ const RESPONSE_SCHEMA_DESCRIPTION = `{
       "name": "string",
       "parameters": [{"name": "string", "type": "string", "description": "string"}],
       "description": "string",
-      "whenEmitted": "string - exact conditions",
-      "purpose": "string - why this event exists"
+      "whenEmitted": "string",
+      "purpose": "string"
     }
   ],
   "modifiers": [
@@ -189,8 +128,8 @@ const RESPONSE_SCHEMA_DESCRIPTION = `{
       "purpose": "string"
     }
   ],
-  "designPatterns": ["string - identified pattern with explanation"],
-  "inheritanceTree": ["string - parent contract names"],
+  "designPatterns": ["string"],
+  "inheritanceTree": ["string"],
   "externalCalls": [
     {
       "targetContract": "string",
@@ -198,9 +137,7 @@ const RESPONSE_SCHEMA_DESCRIPTION = `{
       "purpose": "string"
     }
   ],
-  "securityConsiderations": ["string - each security concern with severity"],
-  "gasOptimizations": ["string - each optimization suggestion"],
-  "useCases": ["string - real-world usage scenario"],
+  "securityConsiderations": ["string - concern with severity"],
   "complexity": "Low|Medium|High|Very High"
 }`;
 
@@ -533,7 +470,14 @@ function parseAndValidate(
   } catch {
     // Try repairing truncated JSON (common when hitting token limits)
     const repaired = repairTruncatedJSON(jsonStr);
-    parsed = JSON.parse(repaired);
+    try {
+      parsed = JSON.parse(repaired);
+    } catch {
+      throw new Error(
+        `AI response for ${contractName} was too large and got truncated. ` +
+          `Please try again — results may vary between attempts.`
+      );
+    }
   }
 
   // Build validated result with fallbacks for missing fields

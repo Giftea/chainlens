@@ -886,16 +886,26 @@ function buildDiffPrompt(
   changes: DiffChange[],
   securityImpacts: SecurityImpact[],
 ): string {
-  const changesText = changes
+  // Limit changes sent to AI to avoid prompt overflow (prioritize breaking/high-impact)
+  const sortedChanges = [...changes].sort((a, b) => {
+    const priority: Record<string, number> = { removed: 0, modified: 1, added: 2 };
+    return (priority[a.type] ?? 3) - (priority[b.type] ?? 3);
+  });
+  const limitedChanges = sortedChanges.slice(0, 40);
+  const truncatedNote = changes.length > 40
+    ? `\n\n(Showing ${limitedChanges.length} of ${changes.length} changes — prioritized by impact)`
+    : "";
+
+  const changesText = limitedChanges
     .map((c) => {
       let text = `[${c.type.toUpperCase()}] ${c.category}: ${c.name}`;
-      if (c.before) text += `\n  Before: ${c.before}`;
-      if (c.after) text += `\n  After:  ${c.after}`;
+      if (c.before) text += `\n  Before: ${c.before.slice(0, 200)}`;
+      if (c.after) text += `\n  After:  ${c.after.slice(0, 200)}`;
       text += `\n  Impact: ${c.impact}`;
       if (c.explanation) text += `\n  Note: ${c.explanation}`;
       return text;
     })
-    .join("\n\n");
+    .join("\n\n") + truncatedNote;
 
   const securityText =
     securityImpacts.length > 0
@@ -957,7 +967,7 @@ export async function performSemanticAnalysis(
   try {
     const message = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
-      max_tokens: 8192,
+      max_tokens: 16384,
       system: DIFF_SYSTEM_PROMPT,
       messages: [{ role: "user", content: userPrompt }],
     });
@@ -972,8 +982,38 @@ export async function performSemanticAnalysis(
       null,
       responseText,
     ];
-    const jsonStr = (jsonMatch[1] || responseText).trim();
-    const parsed = JSON.parse(jsonStr);
+    let jsonStr = (jsonMatch[1] || responseText).trim();
+
+    // Attempt to repair truncated JSON (common when hitting token limits)
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      // Try basic repair: close unclosed strings, arrays, objects
+      if (!jsonStr.endsWith("}")) {
+        // Remove trailing partial value
+        const lastComma = jsonStr.lastIndexOf(",");
+        if (lastComma > 0) {
+          jsonStr = jsonStr.slice(0, lastComma);
+        }
+        // Count and close unclosed braces/brackets
+        let braces = 0, brackets = 0, inStr = false, esc = false;
+        for (const ch of jsonStr) {
+          if (esc) { esc = false; continue; }
+          if (ch === "\\") { esc = true; continue; }
+          if (ch === '"') { inStr = !inStr; continue; }
+          if (inStr) continue;
+          if (ch === "{") braces++;
+          else if (ch === "}") braces--;
+          else if (ch === "[") brackets++;
+          else if (ch === "]") brackets--;
+        }
+        if (inStr) jsonStr += '"';
+        jsonStr += "]".repeat(Math.max(0, brackets));
+        jsonStr += "}".repeat(Math.max(0, braces));
+      }
+      parsed = JSON.parse(jsonStr);
+    }
 
     return {
       summary: parsed.summary || "Analysis complete.",
@@ -987,9 +1027,15 @@ export async function performSemanticAnalysis(
       riskLevel: parsed.riskLevel || "low",
     };
   } catch (error) {
-    console.error("Semantic analysis failed:", error);
-    // Return a fallback analysis based on rule-based results
-    return buildFallbackAnalysis(changes, securityImpacts);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    console.error("Semantic analysis failed:", errMsg);
+    // Return a fallback analysis with the error reason visible
+    const fallback = buildFallbackAnalysis(changes, securityImpacts);
+    fallback.summary = fallback.summary.replace(
+      "AI analysis unavailable",
+      `AI analysis failed: ${errMsg.slice(0, 120)}`
+    );
+    return fallback;
   }
 }
 
