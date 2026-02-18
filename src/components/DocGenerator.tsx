@@ -196,6 +196,7 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
       let documentation: Documentation | null = null;
       let generatedDocumentation: GeneratedDocumentation | undefined;
       let streamError: string | null = null;
+      let dataBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -215,9 +216,13 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
         for (const line of lines) {
           if (line.startsWith("event: ")) {
             eventType = line.slice(7).trim();
-          } else if (line.startsWith("data: ") && eventType) {
+            dataBuffer = "";
+          } else if (line.startsWith("data: ")) {
+            dataBuffer += line.slice(6);
+          } else if (line.trim() === "" && eventType && dataBuffer) {
+            // Blank line = end of SSE event, now parse accumulated data
             try {
-              const data = JSON.parse(line.slice(6));
+              const data = JSON.parse(dataBuffer);
               if (eventType === "progress") {
                 setProgress({
                   stage: data.stage,
@@ -231,10 +236,27 @@ export default function DocGenerator({ onDocGenerated, initialAddress, initialNe
                 streamError = data.error || "Generation failed";
               }
             } catch {
-              // Ignore partial JSON
+              // JSON parse failed even after accumulation
             }
             eventType = "";
+            dataBuffer = "";
           }
+        }
+
+        // On stream end, try parsing any remaining buffered event
+        if (done && eventType && dataBuffer) {
+          try {
+            const data = JSON.parse(dataBuffer);
+            if (eventType === "complete" && data.documentation) {
+              documentation = data.documentation;
+              generatedDocumentation = data.generatedDocumentation;
+            } else if (eventType === "error") {
+              streamError = data.error || "Generation failed";
+            }
+          } catch {
+            // Final parse attempt failed
+          }
+          break;
         }
 
         if (done) break;
