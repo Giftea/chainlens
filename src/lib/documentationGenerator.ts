@@ -871,7 +871,7 @@ export function generateDocumentationStream(
         let fullText = "";
 
         const stream = client.messages.stream({
-          model: "claude-sonnet-4-5-20250929",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 16384,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: userPrompt }],
