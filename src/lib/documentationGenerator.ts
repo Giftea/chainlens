@@ -244,8 +244,8 @@ function buildUserPrompt(
   chainId: number,
   astContext: ASTContext,
 ): string {
-  // Truncate source for large contracts (keep within context window)
-  const maxSourceLength = 50000;
+  // Truncate source for large contracts to keep generation fast (Vercel 60s limit)
+  const maxSourceLength = 30000;
   const truncatedSource =
     sourceCode.length > maxSourceLength
       ? sourceCode.slice(0, maxSourceLength) +
@@ -870,8 +870,9 @@ export function generateDocumentationStream(
         const client = new Anthropic({ apiKey });
         let fullText = "";
 
+        // Use Haiku for streaming — much faster, fits within Vercel's 60s timeout
         const stream = client.messages.stream({
-          model: "claude-sonnet-4-5-20250929",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: 16384,
           system: SYSTEM_PROMPT,
           messages: [{ role: "user", content: userPrompt }],
