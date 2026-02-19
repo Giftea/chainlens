@@ -164,7 +164,7 @@ Make this PRODUCTION-READY. I want to start coding immediately after this step w
 
 **Screenshot:** 
 
-![Prompt 1](./public/prompt_1_response.png)
+![Prompt 1](../public/prompt_1_response.png)
 
 **Time Saved:** ~3 hours (it wuld have taken time to research and configure all tools)
 
@@ -382,7 +382,7 @@ Make it look professional.
 
 **Screenshot:** 
 
-![home](./public/home.png)
+![home](../public/home.png)
 
 **Before/After Comparison:**
 - Before: Empty Next.js boilerplate
@@ -765,7 +765,7 @@ Make it beautiful but functional.
 
 **Screenshot:**
 
-![gen page](./public/gen-page.png)
+![gen page](../public/gen-page.png)
 
 **Time Saved:** Aabout 4 - 5 hours
 
@@ -920,7 +920,7 @@ Test with these contracts:
 
 **Screenshot:**
 
-![playground](./public/playground.png)
+![playground](../public/playground.png)
 
 
 **Time Saved:** 3 hours
@@ -1247,7 +1247,7 @@ Make this visually impressive, dependency graphs are complex, so clarity is key.
 
 **Screenshot:**
 
-![dep](./public/dep.png)
+![dep](../public/dep.png)
 
 
 **Time Saved:** ~2hours
@@ -1304,7 +1304,7 @@ Test complete flow:
 
 **Screenshot:**
 
-![ipfs](./public/ipfs.png)
+![ipfs](../public/ipfs.png)
 
 
 **Time Saved:** ~1 hour
