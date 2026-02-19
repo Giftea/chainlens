@@ -18,6 +18,14 @@
 - **Multi-Format Export** — Download documentation as Markdown, PDF, or HTML
 - **Multi-Network Support** — BSC Mainnet, BSC Testnet, and opBNB
 
+## Quick Links
+
+All necessary documentation can be found in the `/docs` folder:
+ - [AI_BUILD_LOG.md](./docs/AI_BUILD_LOG.md) - Document showing how AI was used.
+ - [TECHNICAL.md](./docs/TECHNICAL.md) - Document for Problem, solution, impact, roadmap of Chainlens.
+ - [PROJECT.md](./docs/PROJECT.md) - Document for Architecture, setup, demo.
+ - [EXTRAS.md](./docs/EXTRAS.md) - Document containing YouTube Video.
+
 ### Generated Documentation
 ![View Doc](./public/gen-doc.png)
 
@@ -25,7 +33,7 @@
 ![sec](./public/sec-analysis.png)
 
 ### Playground
-![playground](./public/playgorund.png)
+![playground](./public/playground.png)
 
 ## Tech Stack
 
@@ -35,7 +43,7 @@
 | AI | Claude API (`@anthropic-ai/sdk`) |
 | Web3 | ethers.js v6, MetaMask |
 | Parsing | `@solidity-parser/parser` (AST) |
-| Visualization | React Flow, D3.js, Recharts |
+| Visualization | React Flow |
 | Code Editor | Monaco Editor |
 | Storage | Pinata (IPFS), DocRegistry (on-chain) |
 | Smart Contracts | Hardhat, Solidity 0.8.24, OpenZeppelin |

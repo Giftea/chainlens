@@ -21,7 +21,7 @@ ChainLens is an app that combines AI analysis, decentralized storage, and on-cha
 | **Web3 Layer** | ethers.js v6, MetaMask | Read/write contract interaction in the playground, wallet connection, network switching |
 | **Storage** | Pinata (IPFS) | Permanent, decentralized storage of documentation bundles |
 | **On-Chain Registry** | DocRegistry (Solidity 0.8.24, OpenZeppelin) | Stores documentation metadata (IPFS hash, version, content hash) on BSC for discoverability |
-| **Visualization** | React Flow, D3.js, Recharts | Dependency graphs, contract relationship mapping |
+| **Visualization** | React Flow | Dependency graphs, contract relationship mapping |
 
 ### Component Diagram
 
